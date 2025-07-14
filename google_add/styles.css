@@ -1,0 +1,7 @@
+body {
+  transition: filter 0.3s ease;
+}
+
+html.dark-mode body {
+  filter: brightness(80%) contrast(120%);
+}
