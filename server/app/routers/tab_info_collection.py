@@ -8,7 +8,7 @@ router = APIRouter()
 async def post_collected_data(request: Request):
     data = await request.json()
     user = data.get("user", {}).get("info", {})
-    pdb.set_trace()
+    # pdb.set_trace()
     print(user)
     driver = get_driver()
     with driver.session(database="neo4j") as session:
