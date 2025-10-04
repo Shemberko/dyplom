@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "User Activity Advisor",
+  "version": "1.0",
+  "description": "Накладає ефекти поверх сторінки та генерує поради на основі активності.",
+  "permissions": ["tabs", "storage", "scripting", "activeTab", "identity", "identity.email"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://www.youtube.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [{
+      "matches": ["<all_urls>", "https://www.youtube.com/*"],
+      "js": ["content.js", "services/click_detector.js"],
+      "css": ["styles.css"]
+    }
+  ]
+}

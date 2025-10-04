@@ -1,0 +1,1 @@
+const e=document.createElement("div");e.style.position="fixed";e.style.top="0";e.style.left="0";e.style.width="100%";e.style.height="100%";e.style.background="rgba(0,0,0,0)";e.style.zIndex="999999";e.style.pointerEvents="none";document.body.appendChild(e);
