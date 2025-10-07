@@ -1,55 +1,49 @@
-class MessageService {
-    connect() {}
-    send(msg) {}
-    onMessage(callback) {}
-    disconnect() {}
-}
-
-// WebSocket реалізація
-export default class WebSocketService extends MessageService {
+export default class WebSocketService {
     constructor(url) {
-        super();
         this.url = url;
         this.socket = null;
-        this.messageCallbacks = [];
+        this.reconnectInterval = 3000;
+        this.shouldReconnect = true;
     }
 
     connect() {
+        console.log("[WebSocket] Connecting to", this.url);
         this.socket = new WebSocket(this.url);
 
         this.socket.onopen = () => {
-            console.log('WebSocket connected');
+            console.log("[WebSocket] Connected");
         };
 
         this.socket.onmessage = (event) => {
-            this.messageCallbacks.forEach(cb => cb(event.data));
+            console.log("[WebSocket] Message:", event.data);
         };
 
         this.socket.onerror = (error) => {
-            console.error('WebSocket error:', error);
+            console.error("[WebSocket] Error:", error);
         };
 
-        this.socket.onclose = () => {
-            console.log('WebSocket disconnected');
+        this.socket.onclose = (event) => {
+            console.warn("[WebSocket] Disconnected:", event.reason || "no reason");
+
+            if (this.shouldReconnect) {
+                console.log(`[WebSocket] Reconnecting in ${this.reconnectInterval / 1000}s...`);
+                setTimeout(() => this.connect(), this.reconnectInterval);
+            }
         };
     }
 
-    send(msg) {
+    send(data) {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            this.socket.send(msg);
+            this.socket.send(data);
         } else {
-            console.warn('WebSocket is not open. Message not sent.');
+            console.warn("[WebSocket] Not connected, message skipped:", data);
         }
     }
 
-    onMessage(cb) {
-        this.messageCallbacks.push(cb);
-    }
-
-    disconnect() {
+    close() {
+        this.shouldReconnect = false;
         if (this.socket) {
             this.socket.close();
-            this.socket = null;
         }
     }
 }
