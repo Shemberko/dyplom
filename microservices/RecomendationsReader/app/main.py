@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from app.routers import test, tab_info_collection
 from fastapi import WebSocket
-from app.services.comunication.web_socket_broker import WebSocketBroker
-from app.services.comunication.web_socket_rx_service import WebSocketRxService
 from app.services.comunication.rabbit_mq_service import RabbitMQBroker
 
 # --- OpenTelemetry setup ---
@@ -25,20 +23,3 @@ trace.set_tracer_provider(provider)
 app = FastAPI()
 FastAPIInstrumentor.instrument_app(app)
 app.include_router(test.router, prefix="/test", tags=["Neo4j test"])
-app.include_router(tab_info_collection.router, prefix="/data", tags=["Tab Info Collection"])
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    broker = WebSocketBroker(websocket)
-    send_broker = RabbitMQBroker("amqp://guest:guest@localhost/", "raw_click_queue")
-    await send_broker.connect()
-
-    rx_service = WebSocketRxService(broker, send_broker, batch_size=5)
-    await rx_service.handle()
-
-#  uvicorn app.main:app --reload
-# docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-# docker stop rabbitmq
-# docker rm rabbitmq
-# docker run -d --name jaeger \
-#  docker run -d --name jaeger   -e COLLECTOR_OTLP_ENABLED=true  -p 16686:16686 -p 4318:4318  jaegertracing/all-in-one:latest

@@ -1,7 +1,6 @@
 import asyncio
 import aio_pika
 from ..abstractions.message_broker import MessageBroker
-import json
 
 class RabbitMQBroker(MessageBroker):
     def __init__(self, amqp_url, queue_name, topic_exchange=None, routing_key="#"):
@@ -27,11 +26,7 @@ class RabbitMQBroker(MessageBroker):
             self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
 
     async def send(self, message):
-        if isinstance(message, dict):
-            body = json.dumps(message).encode()
-        else:
-            body = str(message).encode()
-        msg = aio_pika.Message(body=body)
+        msg = aio_pika.Message(body=message.encode())
         if self.exchange:
             await self.exchange.publish(msg, routing_key=self.routing_key)
         else:
