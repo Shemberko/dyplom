@@ -1,0 +1,14 @@
+_format_version: "3.0"
+services:
+  - name: fastapi-service1
+    url: http://fastapi1:8000/
+    routes:
+      - name: service1-route
+        paths:
+          - /api/service1
+        plugins:
+          - name: http-auth
+            config:
+              url: http://fastapi1:8000/auth/validate
+              method: GET
+              forward_request_body: false
