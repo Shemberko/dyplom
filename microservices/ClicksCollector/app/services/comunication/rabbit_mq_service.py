@@ -15,16 +15,26 @@ class RabbitMQBroker(MessageBroker):
         self.exchange = None
 
     async def connect(self):
-        self.connection = await aio_pika.connect_robust(self.amqp_url)
-        self.channel = await self.connection.channel()
-        if self.topic_exchange_name:
-            self.exchange = await self.channel.declare_exchange(
-                self.topic_exchange_name, aio_pika.ExchangeType.TOPIC, durable=True
-            )
-            self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
-            await self.queue.bind(self.exchange, routing_key=self.routing_key)
-        else:
-            self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
+        max_retries = 10
+        delay = 2  # seconds
+        for attempt in range(max_retries):
+            try:
+                self.connection = await aio_pika.connect_robust(self.amqp_url)
+                self.channel = await self.connection.channel()
+                if self.topic_exchange_name:
+                    self.exchange = await self.channel.declare_exchange(
+                        self.topic_exchange_name, aio_pika.ExchangeType.TOPIC, durable=True
+                    )
+                    self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
+                    await self.queue.bind(self.exchange, routing_key=self.routing_key)
+                else:
+                    self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
+                break  # Success
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(delay)
+                else:
+                    raise e
 
     async def send(self, message):
         if isinstance(message, dict):

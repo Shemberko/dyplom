@@ -1,29 +1,5 @@
-# import asyncio
-# from services.comunication.rabbit_mq_service import RabbitMQBroker 
-
-# async def main():
-#     broker = RabbitMQBroker(
-#         amqp_url="amqp://guest:guest@localhost/",
-#         queue_name="raw_click_queue",
-#         # topic_exchange="data_exchange",
-#         # routing_key="raw.data"
-#     )
-#     await broker.connect()
-#     print("Waiting for messages. To exit press CTRL+C")
-#     try:
-#         while True:
-#             message = await broker.receive()
-#             print(f"Received message: {message}")
-#     finally:
-#         await broker.disconnect()
-
-# if __name__ == "__main__":
-#     try:
-#         asyncio.run(main())
-#     except KeyboardInterrupt:
-#         print("\nProgram interrupted by user. Exiting gracefully.")
-
 import asyncio
+import os
 from services.comunication.rabbit_mq_service import RabbitMQBroker
 
 # --- OpenTelemetry setup ---
@@ -38,14 +14,16 @@ resource = Resource(attributes={
 })
 
 provider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+endpoint= os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 tracer = trace.get_tracer(__name__)
 
 async def main():
+    amqp_url=os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/")
     broker = RabbitMQBroker(
-    amqp_url="amqp://guest:guest@localhost/",
+    amqp_url=amqp_url,
     queue_name="raw_click_queue",
     # topic_exchange="data_exchange",
     # routing_key="raw.data"

@@ -1,7 +1,6 @@
 from fastapi import FastAPI
-from app.routers import test, tab_info_collection
-from fastapi import WebSocket
-from app.services.comunication.rabbit_mq_service import RabbitMQBroker
+from app.routers import save_data
+import os
 
 # --- OpenTelemetry setup ---
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -12,14 +11,18 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry import trace
 
 resource = Resource(attributes={
-    SERVICE_NAME: "fastapi-server"
+    SERVICE_NAME: "recommendationsreader"
 })
 
 provider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+endpoint= os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
+
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 
 app = FastAPI()
 FastAPIInstrumentor.instrument_app(app)
-app.include_router(test.router, prefix="/test", tags=["Neo4j test"])
+
+# delete later
+app.include_router(save_data.router, prefix="/data", tags=["test"])

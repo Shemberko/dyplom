@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from app.routers import test, tab_info_collection
 from fastapi import WebSocket
@@ -18,7 +19,8 @@ resource = Resource(attributes={
 })
 
 provider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+endpoint= os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 
@@ -29,8 +31,9 @@ app.include_router(tab_info_collection.router, prefix="/data", tags=["Tab Info C
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    amqp_url=os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/")
     broker = WebSocketBroker(websocket)
-    send_broker = RabbitMQBroker("amqp://guest:guest@localhost/", "raw_click_queue")
+    send_broker = RabbitMQBroker(amqp_url, "raw_click_queue")
     await send_broker.connect()
 
     rx_service = WebSocketRxService(broker, send_broker, batch_size=5)
@@ -40,5 +43,5 @@ async def websocket_endpoint(websocket: WebSocket):
 # docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 # docker stop rabbitmq
 # docker rm rabbitmq
-# docker run -d --name jaeger \
 #  docker run -d --name jaeger   -e COLLECTOR_OTLP_ENABLED=true  -p 16686:16686 -p 4318:4318  jaegertracing/all-in-one:latest
+# docker-compose logs -f fastapi-server

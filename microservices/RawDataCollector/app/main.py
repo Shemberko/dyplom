@@ -1,4 +1,5 @@
 import asyncio
+import os
 from services.comunication.rabbit_mq_service import RabbitMQBroker
 
 # --- OpenTelemetry setup ---
@@ -13,14 +14,16 @@ resource = Resource(attributes={
 })
 
 provider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+endpoint= os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 tracer = trace.get_tracer(__name__)
 
 async def main():
+    amqp_url=os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/")
     broker = RabbitMQBroker(
-        amqp_url="amqp://guest:guest@localhost/",
+        amqp_url=amqp_url,
         queue_name="raw_data_queue"
     )
     await broker.connect()
@@ -29,9 +32,16 @@ async def main():
         while True:
             message = await broker.receive()
             # Створюємо спан для обробки повідомлення
-            with tracer.start_as_current_span("process_rabbitmq_message"):
+
+            attributes = {
+                "messaging.system": "rabbitmq",
+                "messaging.destination": broker.queue_name,
+                "messaging.message_payload_size": len(message),
+                "messaging.message_preview": message[:200],  # короткий превью
+                "app.environment": os.getenv("ENV", "dev"),
+            }
+            with tracer.start_as_current_span("process_rabbitmq_message", attributes=attributes) as span:
                 print(f"Received message: {message}")
-                # тут твоя логіка обробки
     finally:
         await broker.disconnect()
 
