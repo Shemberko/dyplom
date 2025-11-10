@@ -44,4 +44,6 @@ async def websocket_endpoint(websocket: WebSocket):
 # docker stop rabbitmq
 # docker rm rabbitmq
 #  docker run -d --name jaeger   -e COLLECTOR_OTLP_ENABLED=true  -p 16686:16686 -p 4318:4318  jaegertracing/all-in-one:latest
-# docker-compose logs -f fastapi-server
+# docker-compose logs -f rawdatacollector
+# docker compose up --build -d
+# docker attach rawdatacollector

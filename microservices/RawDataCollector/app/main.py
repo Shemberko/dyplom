@@ -1,6 +1,8 @@
 import asyncio
 import os
 from services.comunication.rabbit_mq_service import RabbitMQBroker
+from services.json_message_processor import JsonMessageProcessor
+
 
 # --- OpenTelemetry setup ---
 from opentelemetry import trace
@@ -20,31 +22,42 @@ provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 tracer = trace.get_tracer(__name__)
 
+# ...existing code...
 async def main():
-    amqp_url=os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/")
+    amqp_url = os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/")
     broker = RabbitMQBroker(
         amqp_url=amqp_url,
         queue_name="raw_data_queue"
     )
-    await broker.connect()
+
+    # retry connect loop: RABBITMQ_CONNECT_RETRIES=0 -> infinite retries
+    max_retries = int(os.getenv("RABBITMQ_CONNECT_RETRIES", "5"))
+    delay = float(os.getenv("RABBITMQ_CONNECT_DELAY", "5"))
+    attempt = 0
+
+    while True:
+        try:
+            await broker.connect()
+            print("Connected to RabbitMQ")
+            break
+        except Exception as e:
+            attempt += 1
+            print(f"RabbitMQ connect attempt {attempt} failed: {e}")
+            if max_retries > 0 and attempt >= max_retries:
+                print("Max RabbitMQ connect retries reached, exiting main()")
+                return  # do not crash the container with an unhandled exception
+            await asyncio.sleep(delay)
+
     print("Waiting for messages. To exit press CTRL+C")
     try:
         while True:
             message = await broker.receive()
-            # Створюємо спан для обробки повідомлення
+            print(f"Received message: {message}")
 
-            attributes = {
-                "messaging.system": "rabbitmq",
-                "messaging.destination": broker.queue_name,
-                "messaging.message_payload_size": len(message),
-                "messaging.message_preview": message[:200],  # короткий превью
-                "app.environment": os.getenv("ENV", "dev"),
-            }
-            with tracer.start_as_current_span("process_rabbitmq_message", attributes=attributes) as span:
-                print(f"Received message: {message}")
+            JsonMessageProcessor().process(message)
     finally:
         await broker.disconnect()
-
+# ...existing code...
 if __name__ == "__main__":
     try:
         asyncio.run(main())

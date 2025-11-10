@@ -16,7 +16,7 @@ class RabbitMQBroker(MessageBroker):
 
     async def connect(self):
         max_retries = 10
-        delay = 2  # seconds
+        delay = 2
         for attempt in range(max_retries):
             try:
                 self.connection = await aio_pika.connect_robust(self.amqp_url)
@@ -29,7 +29,7 @@ class RabbitMQBroker(MessageBroker):
                     await self.queue.bind(self.exchange, routing_key=self.routing_key)
                 else:
                     self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
-                break  # Success
+                break
             except Exception as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(delay)
@@ -53,7 +53,17 @@ class RabbitMQBroker(MessageBroker):
         async with self.queue.iterator() as queue_iter:
             async for message in queue_iter:
                 async with message.process():
-                    return message.body.decode()
+                    try:
+                        body = message.body.decode()
+
+                        file_path = "messages.log"
+                        await asyncio.to_thread(lambda: open(file_path, "a", encoding="utf-8").write(body + "\n"))
+
+                        return body
+                    except Exception as e:
+                        err = f"Error processing message: {e}\n"
+                        await asyncio.to_thread(lambda: open("errors.log", "a", encoding="utf-8").write(err))
+                        raise
 
     async def disconnect(self):
         await self.connection.close()

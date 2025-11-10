@@ -16,7 +16,7 @@ class RabbitMQBroker(MessageBroker):
 
     async def connect(self):
         max_retries = 10
-        delay = 2  # seconds
+        delay = 2
         for attempt in range(max_retries):
             try:
                 self.connection = await aio_pika.connect_robust(self.amqp_url)
@@ -29,7 +29,7 @@ class RabbitMQBroker(MessageBroker):
                     await self.queue.bind(self.exchange, routing_key=self.routing_key)
                 else:
                     self.queue = await self.channel.declare_queue(self.queue_name, durable=True)
-                break  # Success
+                break
             except Exception as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(delay)

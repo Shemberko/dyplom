@@ -9,6 +9,10 @@ WORKDIR /app
 # Копіюємо залежності
 COPY requirements.txt .
 
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+    "torch>=2.2.0" torchvision torchaudio
+
+
 # Встановлюємо залежності
 RUN pip install --no-cache-dir -r requirements.txt
 
