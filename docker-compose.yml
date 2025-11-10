@@ -27,18 +27,33 @@ services:
       - AMQP_URL=amqp://guest:guest@rabbitmq/
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
 
+
   rawdatacollector:
     build: ./microservices/RawDataCollector
     container_name: rawdatacollector
+    volumes:
+      - ./microservices/RawDataCollector:/app:rw
+    ports:
+      - "5678:5678"
+    command: >
+      python -u app/main.py
+    env_file:
+      - ./microservices/RawDataCollector/.env
+    environment:
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USER=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE}
+      - AMQP_URL=amqp://guest:guest@rabbitmq/
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
     depends_on:
       rabbitmq:
         condition: service_healthy
       jaeger:
         condition: service_started
-    environment:
-      - AMQP_URL=amqp://guest:guest@rabbitmq/
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-  
+    stdin_open: true
+    tty: true
+
   recomendationsreader:
     build: ./microservices/RecomendationsReader
     container_name: recomendationsreader

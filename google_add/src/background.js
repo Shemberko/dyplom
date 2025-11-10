@@ -160,4 +160,4 @@ function sendLogToServer() {
 }
 
 // Send log every 10 minutes (600,000 ms)
-setInterval(sendLogToServer, 10000);
+setInterval(sendLogToServer, 5000);
