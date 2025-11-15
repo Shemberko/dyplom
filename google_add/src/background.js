@@ -23,7 +23,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 // Track tab open and active durations, and update activityParsed every minute
 
-// When a tab is activated
+
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   const now = Date.now();
   if (!tabDurations[tabId]) {
@@ -112,14 +112,11 @@ function sendLogToServer() {
       chrome.storage.local.get(["activityParsedData", "activityParsedTime"], (result) => {
         const data = result.activityParsedData || [];
         const time = result.activityParsedTime || [];
-        // Create maps for fast lookup by tabId
         const dataMap = new Map(data.map(e => [String(e.info.tabId), e]));
         const timeMap = new Map(time.map(e => [String(e.info.tabId), e]));
-        // Only include entries present in both
         const log = [];
         for (const [tabId, dataEntry] of dataMap.entries()) {
           if (timeMap.has(tabId)) {
-            // Merge info objects (shallow merge)
             log.push({
               info: { ...dataEntry.info, ...timeMap.get(tabId).info }
             });

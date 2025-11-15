@@ -5,6 +5,7 @@ from .helpers.url_processor_service import UrlProcessorService
 from .gemini.embeddings_service import EmbeddingsService
 from .neo4j.history_service import HistoryService
 from datetime import datetime
+from datetime import datetime, timezone
 
 
 class JsonMessageProcessor:
@@ -95,52 +96,50 @@ class JsonMessageProcessor:
 
                 canonical = self.url_processor.normalize(raw_url)
 
-                # build embedding text and compute embedding
-                text_for_embedding = self._build_text_for_embedding(info)
-                embedding: List[float] = []
+                page_exists = False
                 try:
-                    emb = self.embeddings(text_for_embedding)
-                    # embeddings service returns list[float] or [] on error
-                    if isinstance(emb, list) and emb:
-                        embedding = emb
+                    page_exists = bool(self.history.page_exists(canonical))
+                
                 except Exception:
-                    embedding = []
+                    page_exists = False
 
+                if not page_exists:
+                    text_for_embedding = self._build_text_for_embedding(info)
+                    embedding: List[float] = []
+                    try:
+                        emb = self.embeddings(text_for_embedding)
+                        if isinstance(emb, list) and emb:
+                            embedding = emb
+                    except Exception:
+                        embedding = []
 
-                page_props = {
-                    "title": info.get("title"),
-                    "metaDescription": info.get("metaDescription"),
-                    "textSample": info.get("textSample"),
-                    "active": info.get("active"),
-                    "totalOpen": info.get("totalOpen"),
-                    "original_url": raw_url,
-                }
-                if embedding:
-                    page_props["embedding"] = embedding
+                    page_props = {
+                        "title": info.get("title"),
+                        "meta_description": info.get("metaDescription"),
+                        "text_sample": info.get("textSample"),
+                        # "active": info.get("active") / 60000.0 if info.get("active") else None,
+                        # "totalOpen": info.get("totalOpen"),
+                    }
+                    if embedding:
+                        page_props["text_embedding"] = embedding
 
-                # persist page and vis
-            
-                self.history.create_or_update_page(canonical, page_props)
-                # record visit time and source; include active/totalOpen as deltas to be summed by history service
-                visited_at = datetime.utcnow().isoformat() + "Z"
+                    self.history.create_or_update_page(canonical, page_props)
+                visited_at = datetime.now(timezone.utc).isoformat()
                 visit_props = {"source": "browser-extension", "visitedAt": [visited_at]}
 
-                # include numeric fields when available (coerce to int if possible)
                 active = info.get("active")
                 if active is not None:
                     try:
-                        visit_props["active"] = int(active)
+                        visit_props["active_time"] = active / 60000
                     except Exception:
                         pass
 
                 total_open = info.get("totalOpen")
                 if total_open is not None:
                     try:
-                        visit_props["totalOpen"] = int(total_open)
+                        visit_props["total_open_time"] = total_open / 60000
                     except Exception:
                         pass
-
-                breakpoint()
 
                 self.history.create_or_update_visit(user_id=user_id, page_url=canonical, visit_props=visit_props)
 

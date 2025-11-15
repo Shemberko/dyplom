@@ -20,6 +20,10 @@ class HistoryService(BaseService):
         props = props or {}
         props["url"] = url
         return super().create_or_update_node("Page", "url", props)
+    
+    def page_exists(self, url: str) -> bool:
+        node = super().get_node("Page", "url", url)
+        return node is not None
 
     def create_or_update_visit(self,
                                user_id: str,
@@ -34,5 +38,5 @@ class HistoryService(BaseService):
             start_label="User", start_key="id", start_val=user_id,
             end_label="Page", end_key="url", end_val=page_url,
             rel_type="VISIT", rel_properties=visit_props,
-            additive_metrics=["active", "totalOpen"]
+            additive_metrics=["active_time", "total_open_time"]
         )
