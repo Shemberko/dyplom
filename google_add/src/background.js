@@ -48,6 +48,7 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 });
 
 // When tab is closed
+// ...existing code...
 chrome.tabs.onRemoved.addListener((tabId) => {
   const tabData = tabDurations[tabId];
   if (tabData) {
@@ -57,22 +58,44 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     }
     tabData.totalOpen = Date.now() - tabData.opened;
   }
+
+  const sid = String(tabId);
+  const record = { tabId: sid, closedAt: Date.now() };
+
+  chrome.storage.local.get(["closedTabIds"], (stored) => {
+    const closed = stored.closedTabIds || [];
+    const idx = closed.findIndex(c => String(c.tabId) === sid);
+    if (idx === -1) {
+      closed.push(record);
+    } else {
+      // оновити час закриття, якщо запис уже є
+      closed[idx].closedAt = record.closedAt;
+    }
+    chrome.storage.local.set({ closedTabIds: closed }, () => {
+      console.log("[background]Saved closed tab id", sid);
+    });
+  });
 });
 
 // Update durations and activityParsed every minute
 setInterval(() => {
   const now = Date.now();
-  for (const tabId in tabDurations) {
-    const tab = tabDurations[tabId];
-    // Update totalOpen
-    tab.totalOpen = now - tab.opened;
-    // Update active time if tab is currently active
-    if (activeTabId == tabId && tab.lastActive) {
-      tab.active += now - tab.lastActive;
-      tab.lastActive = now;
+  chrome.storage.local.get(['closedTabIds'], (stored) => {
+    const closed = stored.closedTabIds || [];
+    const closedSet = new Set(closed.map(c => String(c.tabId)));
+    for (const tabId in tabDurations) {
+      if (closedSet.has(String(tabId))) continue;
+      const tab = tabDurations[tabId];
+      // Update totalOpen
+      tab.totalOpen = now - tab.opened;
+      // Update active time if tab is currently active
+      if (activeTabId == tabId && tab.lastActive) {
+        tab.active += now - tab.lastActive;
+        tab.lastActive = now;
+      }
+      tab.opened = now;
     }
-    tab.opened = now;
-  }
+  });
 
   // Update activityParsed in storage
   chrome.storage.local.get(["activityParsedTime"], (result) => {
@@ -109,11 +132,15 @@ setInterval(() => {
 
 function sendLogToServer() {
     chrome.identity.getProfileUserInfo((info) => {
-      chrome.storage.local.get(["activityParsedData", "activityParsedTime"], (result) => {
+      chrome.storage.local.get(["activityParsedData", "activityParsedTime", "closedTabIds"], (result) => {
         const data = result.activityParsedData || [];
         const time = result.activityParsedTime || [];
+        const closed = result.closedTabIds || []; // [{tabId, closedAt}, ...]
+
+
         const dataMap = new Map(data.map(e => [String(e.info.tabId), e]));
         const timeMap = new Map(time.map(e => [String(e.info.tabId), e]));
+
         const log = [];
         for (const [tabId, dataEntry] of dataMap.entries()) {
           if (timeMap.has(tabId)) {
@@ -140,10 +167,17 @@ function sendLogToServer() {
         })
         .then(response => {
           if (response.ok) {
-            console.log("[background]Activity log sent to server");
-
-            chrome.storage.local.set({ activityParsedTime: [] });
-            localStorage.setItem("activityLog", "[]");
+            const closedIds = new Set((closed || []).map(c => String(c.tabId)));
+            const newTime = time.filter(e => !closedIds.has(String(e.info.tabId)));
+            const newData = data.filter(e => !closedIds.has(String(e.info.tabId)));
+            // clear closedTabIds
+            chrome.storage.local.set({
+              activityParsedTime: newTime,
+              activityParsedData: newData,
+              closedTabIds: []
+            }, () => {
+              console.log("[background]Removed closed tabs from storage:", Array.from(closedIds));
+            });
           } else {
             console.error("[background]Failed to send activity log");
           }
@@ -157,4 +191,4 @@ function sendLogToServer() {
 }
 
 // Send log every 10 minutes (600,000 ms)
-setInterval(sendLogToServer, 5000);
+setInterval(sendLogToServer, 600000);
