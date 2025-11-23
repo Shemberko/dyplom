@@ -141,7 +141,7 @@ def _aggregate_visits(visit_records: List[Dict[str, Any]]) -> Tuple[List[float],
     return (batch_sum_weighted, batch_total_w, dim)
 
 @app.task(bind=True, max_retries=3)
-def task_update_text_profile_batch(self, user_id: str, hours_ago: int = 24):
+def task_update_text_profile_batch(self ,neo4j_client: Any, user_id: str, hours_ago: int = 24):
     """
     Celery task: Інкрементально оновлює text профіль на основі
     відвідувань за останні 'hours_ago' годин.

@@ -3,3 +3,4 @@ redis
 neo4j
 sentence-transformers
 debugpy
+numpy

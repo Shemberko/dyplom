@@ -1,23 +1,16 @@
-# Вибираємо офіційний Python образ
+# Використовуємо образ Python 3.11 Slim
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
-
-# Встановлюємо робочу директорію
+# Встановлюємо робочий каталог
 WORKDIR /app
 
-# Копіюємо залежності
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
-    "torch>=2.2.0" torchvision torchaudio
-
-
-# Встановлюємо залежності
+# Копіюємо файл залежностей та встановлюємо їх
+COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копіюємо весь код сервісу
-COPY . .
+# Копіюємо решту коду (включаючи services/)
+COPY . /app
 
-# Вказуємо команду запуску
-CMD ["python", "app/main.py"]
+# [ЗМІНА] Встановлюємо команду за замовчуванням на запуск Celery Worker.
+# Якщо контейнер запускається без команди (docker run), він стає Worker'ом.
+CMD ["celery", "-A", "services.asyn.celery_worker", "worker", "-l", "info", "-Q", "default"]
