@@ -1,5 +1,37 @@
 chrome.runtime.onMessage.addListener((message) => {
     if (message.tabId) {
+        const findPreviewImage = () => {
+            // 1. og:image / twitter:image
+            const og = document.querySelector("meta[property='og:image']")?.content
+                      || document.querySelector("meta[name='twitter:image']")?.content;
+            if (og) try { return (new URL(og, location.href)).href; } catch(e) {}
+
+            // 2. link rel=image_src
+            const linkImg = document.querySelector("link[rel='image_src']")?.href;
+            if (linkImg) try { return (new URL(linkImg, location.href)).href; } catch(e) {}
+
+            // 3. first reasonably large <img>
+            const imgs = Array.from(document.images || []);
+            for (const img of imgs) {
+                const src = img.currentSrc || img.src;
+                if (!src) continue;
+                if (src.startsWith('data:')) continue;
+                const lower = src.toLowerCase();
+                if (lower.includes('icon') || lower.includes('favicon') || lower.includes('sprite') || lower.includes('logo')) continue;
+                const w = img.naturalWidth || 0;
+                const h = img.naturalHeight || 0;
+                if (w >= 100 && h >= 100) {
+                    try { return (new URL(src, location.href)).href; } catch(e) { continue; }
+                }
+            }
+
+            // 4. favicon fallback
+            const fav = document.querySelector("link[rel~='icon']")?.href;
+            if (fav) try { return (new URL(fav, location.href)).href; } catch(e) {}
+
+            return null;
+        };
+        
         const getPageText = () => {
         let text = "";
 
@@ -42,6 +74,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
         const info = {
             url: window.location.href,
+            previewImage: findPreviewImage() || "",
             title: document.title,
             metaDescription: document.querySelector("meta[name='description']")?.content || "",
             textSample: getPageText(),

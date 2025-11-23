@@ -10,10 +10,9 @@ class BaseService:
     """
 
     def __init__(self, uri: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
-        # uri = uri or os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-        uri = uri or os.getenv("NEO4J_URI", "neo4j://localhost:7687") # for local tests
+        uri = uri or os.getenv("NEO4J_URI", "bolt://neo4j:7687")
         user = user or os.getenv("NEO4J_USER", "neo4j")
-        password = password or os.getenv("NEO4J_PASSWORD", "password")
+        password = password or os.getenv("NEO4J_PASSWORD", "neo4j")
         self._driver: Driver = GraphDatabase.driver(uri, auth=(user, password))
 
     def close(self) -> None:
