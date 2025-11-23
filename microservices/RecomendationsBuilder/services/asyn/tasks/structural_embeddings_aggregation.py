@@ -205,7 +205,7 @@ def update_user_embedding_incrementally(self, user_id: str, page_element_id: str
 
 
 @app.task(bind=True, max_retries=3)
-def task_update_structural_profile_batch(self, user_id: str, hours_ago: int = 24):
+def task_update_structural_profile_batch(self, neo4j_client: Any, user_id: str, hours_ago: int = 24):
     """
     Celery task: Інкрементально оновлює structural профіль на основі
     відвідувань за останні 'hours_ago' годин.
