@@ -17,6 +17,12 @@ const wsService = new WebSocketService("ws://localhost:8000/ws");
 wsService.connect();
 
 document.addEventListener("click", function(event) {
+ chrome.storage.local.get([STORAGE_KEY], (result) => {
+        if (result[STORAGE_KEY] === false) {
+            // console.log('Клік проігноровано, бо розширення вимкнено');
+            return;
+        }
+
     const clickInfo = {
         element: event.target.tagName,
         tabId: tabId,
@@ -29,4 +35,5 @@ document.addEventListener("click", function(event) {
     console.log("[click_detector] Click info sent:", clickInfo);
 
     wsService.send(JSON.stringify({ click: clickInfo }));
+    });
 });
