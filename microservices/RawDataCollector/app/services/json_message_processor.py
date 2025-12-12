@@ -76,16 +76,15 @@ class JsonMessageProcessor:
         user_info = (data.get("user") or {}).get("info", {}) if isinstance(data, dict) else {}
         user_id = user_info.get("id")
         user_email = user_info.get("email")
-        if not user_id:
-            return False
 
         try:
             # create/update user
             user_props = {}
             if user_email:
                 user_props["email"] = user_email
-
-            self.history.create_or_update_user(user_id, user_props)
+            
+            if user_id and user_props and user_props.get("id"):
+                self.history.create_or_update_user(user_id, user_props)
 
             # process log entries (pages)
             for entry in (data.get("log") or []):
@@ -116,9 +115,7 @@ class JsonMessageProcessor:
                     page_props = {
                         "title": info.get("title"),
                         "meta_description": info.get("metaDescription"),
-                        "text_sample": info.get("textSample"),
-                        # "active": info.get("active") / 60000.0 if info.get("active") else None,
-                        # "totalOpen": info.get("totalOpen"),
+                        "text_sample": info.get("textSample")
                     }
                     if embedding:
                         page_props["text_embedding"] = embedding
@@ -141,9 +138,14 @@ class JsonMessageProcessor:
                     except Exception:
                         pass
 
-                self.history.create_or_update_visit(user_id=user_id, page_url=canonical, visit_props=visit_props)
+                if active is None and total_open is None:
+                    pass
 
-        except Exception:
+                if user_id and canonical:
+                    self.history.create_or_update_visit(user_id=user_id, page_url=canonical, visit_props=visit_props)
+
+        except Exception as e:
+            print(f"Error processing message: {e}")
             return False
 
         return True

@@ -34,21 +34,3 @@ app.conf.update(
     },
     timezone='Europe/Kyiv'
 )
-
-
-# from services.neo4j.query_runner import query_runner as neo4j_client
-# from services.asyn.tasks.structural_embeddings_building import run_gds_node2vec
-# from services.asyn.tasks.structural_embeddings_aggregation import task_update_structural_profile_batch
-# from services.asyn.tasks.text_embeddings_aggregation import task_update_text_profile_batch
-
-
-# result = run_gds_node2vec(neo4j_client=neo4j_client)
-# task_update_structural_profile_batch(
-#     neo4j_client=neo4j_client,
-#     user_id="101776457075996230946",
-#     hours_ago=24)
-
-# task_update_text_profile_batch(
-#     neo4j_client=neo4j_client,
-#     user_id="101776457075996230946",
-#     hours_ago=24)

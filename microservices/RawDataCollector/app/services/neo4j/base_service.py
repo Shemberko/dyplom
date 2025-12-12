@@ -3,16 +3,12 @@ from typing import Dict, Any, Optional
 from neo4j import GraphDatabase, Driver
 
 class BaseService:
-    """
-    Minimal Neo4j helper: connect, create or update a node by a key property, fetch node,
-    and create relationships.
-    Expects env vars: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD (defaults provided).
-    """
 
     def __init__(self, uri: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
-        uri = uri or os.getenv("NEO4J_URI", "bolt://neo4j:7687")
+         # uri = uri or os.getenv("NEO4J_URI", "bolt://neo4j:7687")
+        uri = uri or os.getenv("NEO4J_URI", "neo4j://localhost:7687") # for local tests
         user = user or os.getenv("NEO4J_USER", "neo4j")
-        password = password or os.getenv("NEO4J_PASSWORD", "neo4j")
+        password = password or os.getenv("NEO4J_PASSWORD", "password")
         self._driver: Driver = GraphDatabase.driver(uri, auth=(user, password))
 
     def close(self) -> None:

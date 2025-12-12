@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import save_data
+from app.routers import recommendations
 import os
 
 # --- OpenTelemetry setup ---
@@ -25,4 +25,4 @@ app = FastAPI()
 FastAPIInstrumentor.instrument_app(app)
 
 # delete later
-app.include_router(save_data.router, prefix="/data", tags=["test"])
+app.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])

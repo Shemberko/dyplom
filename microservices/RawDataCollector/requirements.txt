@@ -6,3 +6,5 @@ opentelemetry-exporter-otlp
 python-dotenv
 sentence_transformers
 debugpy
+boto3
+warcio

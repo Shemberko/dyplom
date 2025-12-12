@@ -8,11 +8,9 @@ try:
 except ImportError:
     np = None
 
-from services.neo4j.query_runner import query_runner as neo4j_client
+from app.services.neo4j.query_runner import query_runner as neo4j_client
 
 log = logging.getLogger(__name__)
-
-# --- Внутрішні функції для обчислення косинусної подібності ---
 
 def _l2_normalize(vec: List[float]) -> List[float]:
     """Нормалізація L2-нормою (довжиною) вектора."""
@@ -79,7 +77,6 @@ class RecommendationService:
         Отримує сторінки-кандидати, які користувач ще не відвідав, 
         з наявними ембедінгами.
         """
-        # [ПОКРАЩЕНО] Використовуємо COALESCE для полів Page також
         q = """
         MATCH (p:Page)
         WHERE NOT EXISTS { (u:User {id: $user_id})-[:VISIT]->(p) }
@@ -216,7 +213,7 @@ class RecommendationService:
                 "title": c.get("title"),
                 "image": c.get("image"),
                 "score": float(score),
-                "text_score": float(ts),      # НОВЕ: Окремий текстовий скор
-                "struct_score": float(ss)     # НОВЕ: Окремий структурний скор
+                "text_score": float(ts),
+                "struct_score": float(ss)
             } for c, score, ts, ss in top
         ]
