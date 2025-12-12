@@ -2,6 +2,7 @@ fastapi
 uvicorn
 aio-pika
 websockets
+neo4j
 uvicorn[standard]
 opentelemetry-api
 opentelemetry-sdk

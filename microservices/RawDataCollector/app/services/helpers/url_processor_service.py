@@ -1,142 +1,133 @@
-# from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+from typing import Optional
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode, quote, unquote
+import re
+import logging
 
-# class UrlProcessorService:
-#     """
-#     Клас-сервіс для обробки та нормалізації URL.
-#     """
-    
-#     # Список параметрів, які зазвичай видаляються (відстеження, сесії тощо)
-#     PARAMS_TO_REMOVE = [
-#         'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-#         'fbclid', 'gclid', 'msclkid', '_ga',
-#     ]
-
-#     def __init__(self):
-#         """
-#         Конструктор сервісу.
-#         Можна використовувати для завантаження конфігурації, якщо потрібно.
-#         """
-#         # У цьому простому випадку конфігурація не потрібна
-#         pass
-
-#     def normalize(self, url: str) -> str:
-#         """
-#         Основний метод, який приймає URL у вигляді рядка (стрічки)
-#         і повертає його нормалізовану версію.
-#         """
-#         try:
-#             # 1. Розбираємо URL
-#             parsed_url = urlparse(url)
-            
-#             # 2. Отримуємо параметри запиту
-#             query_params = parse_qs(parsed_url.query)
-            
-#             # 3. Фільтруємо параметри
-#             filtered_params = {
-#                 key: value for key, value in query_params.items()
-#                 if key.lower() not in self.PARAMS_TO_REMOVE
-#             }
-            
-#             # 4. Сортуємо для узгодженості
-#             sorted_params = sorted(filtered_params.items())
-            
-#             # 5. Кодуємо назад у рядок
-#             new_query_string = urlencode(sorted_params, doseq=True)
-            
-#             # 6. Збираємо URL
-#             normalized = parsed_url._replace(
-#                 scheme=parsed_url.scheme.lower(),
-#                 netloc=parsed_url.netloc.lower(),
-#                 query=new_query_string,
-#                 params='',      # Видаляємо параметри шляху
-#                 fragment=''   # Видаляємо "якір" (#)
-#             )
-            
-#             return urlunparse(normalized)
-            
-#         except Exception as e:
-#             # Обробка випадків, коли передано некоректний URL
-#             print(f"Помилка нормалізації '{url}': {e}")
-#             # Повертаємо None або кидаємо виняток, щоб API міг це обробити
-#             raise ValueError(f"Не вдалося обробити URL: {e}")
-
-
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+logger = logging.getLogger(__name__)
 
 class UrlProcessorService:
     """
-    Клас-сервіс для обробки та нормалізації URL.
+    Оптимізований сервіс для нормалізації URL:
+    - використовує множину для швидкої фільтрації параметрів;
+    - коректно обробляє відсутню схему, IDNA-хости, user:pass, порти;
+    - декодує і повторно кодує path без втрати слешів;
+    - видаляє сесійні токени у шляху;
+    - детерміністично сортує ключі і значення query.
     """
-    
-    # Список параметрів, які зазвичай видаляються (відстеження, сесії тощо)
-    PARAMS_TO_REMOVE = [
-        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-        'fbclid', 'gclid', 'msclkid', '_ga',
-    ]
+    PARAMS_TO_REMOVE = {
+        'utm_source','utm_medium','utm_campaign','utm_term','utm_content',
+        'fbclid','gclid','msclkid','_ga'
+    }
 
-    # Додатковий список параметрів, значення яких потрібно узагальнити (наприклад, замінити на плейсхолдер)
-    # Якщо потрібно узагальнення значень (як обговорювалося), додайте їх сюди.
-    # Наразі залишаємо цей список порожнім, оскільки ви просили лише про канонізацію.
-    # PARAMS_TO_GENERALIZE = ['product_id', 'user_id', 'session_id'] 
+    _SESSION_RE = re.compile(r';(?:jsessionid|phpsessid|sid|session|sessid)=[^/;]*', re.I)
+    _MULTI_SLASH_RE = re.compile(r'/+')
 
-    def __init__(self):
-        """
-        Конструктор сервісу.
-        """
-        pass
+    def __init__(self, remove_www: bool = False, lower_path: bool = True):
+        self.remove_www = remove_www
+        self.lower_path = lower_path
+        # кешована множина для прискорення перевірки
+        self._params_to_remove = {p.lower() for p in self.PARAMS_TO_REMOVE}
 
     def normalize(self, url: str) -> str:
+        if not isinstance(url, str):
+            raise ValueError("URL повинен бути рядком")
+        url = url.strip()
+        if url == "":
+            raise ValueError("Порожній URL")
+
+        # Додати схему, якщо її нема (щоб urlparse коректно наповнив netloc)
+        if '://' not in url:
+            url = 'http://' + url
+
+        try:
+            parsed = urlparse(url)
+
+            scheme = (parsed.scheme or 'http').lower()
+
+            # hostname -> IDNA
+            hostname = parsed.hostname or ''
+            try:
+                hostname_idna = hostname.encode('idna').decode('ascii')
+            except Exception:
+                hostname_idna = hostname
+
+            if self.remove_www and hostname_idna.startswith('www.'):
+                hostname_idna = hostname_idna[4:]
+
+            # Збираємо netloc (зберігаємо user:pass при наявності)
+            netloc = ''
+            if parsed.username:
+                netloc += parsed.username
+                if parsed.password:
+                    netloc += ':' + parsed.password
+                netloc += '@'
+            netloc += hostname_idna
+            port = parsed.port
+            if port and not ((scheme == 'http' and port == 80) or (scheme == 'https' and port == 443)):
+                netloc += f":{port}"
+
+            # Path: декодуємо, чистимо, стискаємо слеші, видаляємо сесійні токени
+            path = parsed.path or '/'
+            path = unquote(path)
+            path = self._SESSION_RE.sub('', path)
+            path = self._MULTI_SLASH_RE.sub('/', path)
+            if path.endswith('/') and len(path) > 1:
+                path = path.rstrip('/')
+            if self.lower_path:
+                path = path.lower()
+            # Повторно кодуємо шлях, дозволяючи безпечні символи
+            safe_chars = "/~:@&+$,=;%-._!~*'()"
+            path = quote(path, safe=safe_chars)
+
+            # Query: розбираємо, фільтруємо, видаляємо пусті значення, сортуємо
+            query_params = parse_qs(parsed.query, keep_blank_values=True)
+            filtered = {}
+            for k, vals in query_params.items():
+                if k.lower() in self._params_to_remove:
+                    continue
+                cleaned = [v for v in vals if v != '']
+                if cleaned:
+                    # сорт значень для детермінізму
+                    filtered[k] = sorted(cleaned)
+
+            sorted_items = sorted(filtered.items(), key=lambda x: x[0])
+            new_query = urlencode(sorted_items, doseq=True)
+
+            normalized = parsed._replace(
+                scheme=scheme,
+                netloc=netloc.lower(),
+                path=path,
+                query=new_query,
+                params='',
+                fragment=''
+            )
+            return urlunparse(normalized)
+
+        except Exception as e:
+            logger.exception("Помилка нормалізації URL: %s", url)
+            raise ValueError(f"Не вдалося обробити URL: {e}")
+
+    def extract_domain(self, url: str) -> str:
         """
-        Основний метод, який приймає URL у вигляді рядка (стрічки)
-        і повертає його нормалізовану версію.
+        Повертає доменне ім'я з URL.
+        Наприклад: 'https://Sub.Domain.com/path' -> 'sub.domain.com'
         """
         try:
-            # 1. Розбираємо URL
-            parsed_url = urlparse(url)
-            
-            # 2. Отримуємо параметри запиту
-            query_params = parse_qs(parsed_url.query)
-            
-            # 3. Фільтруємо параметри (видалення)
-            filtered_params = {
-                key: value for key, value in query_params.items()
-                if key.lower() not in self.PARAMS_TO_REMOVE
-            }
-            
-            # 4. Сортуємо для узгодженості
-            sorted_params = sorted(filtered_params.items())
-            
-            # 5. Кодуємо назад у рядок запиту
-            new_query_string = urlencode(sorted_params, doseq=True)
+            parsed = urlparse(url)
+            if not parsed.netloc and not parsed.path:
+                return ""
+            # Якщо urlparse не розпізнав netloc (наприклад, url без схеми), спробуємо взяти path
+            domain = parsed.netloc if parsed.netloc else parsed.path.split('/')[0]
+            return domain.lower()
+        except Exception:
+            return ""
 
-            # ----------------------------------------------------
-            # 6. ПОКРАЩЕННЯ КАНОНІЗАЦІЇ (Нова логіка)
-            # ----------------------------------------------------
-
-            # Нормалізація шляху:
-            normalized_path = parsed_url.path
-            
-            # A. Видаляємо кінцеву скісну риску (trailing slash) для узагальнення:
-            # Це перетворює '/page/' на '/page', але залишає '/' як '/'
-            if normalized_path.endswith('/') and len(normalized_path) > 1:
-                normalized_path = normalized_path.rstrip('/')
-
-            # B. Приводимо шлях до нижнього регістру:
-            normalized_path = normalized_path.lower()
-            
-            # 7. Збираємо URL, застосовуючи всі правила нормалізації
-            normalized = parsed_url._replace(
-                scheme=parsed_url.scheme.lower(),      # Схема до нижнього регістру (http/https)
-                netloc=parsed_url.netloc.lower(),      # Домен до нижнього регістру
-                path=normalized_path,                  # Використовуємо нормалізований шлях
-                query=new_query_string,                # Використовуємо відфільтрований та відсортований запит
-                params='',                             # Видаляємо параметри шляху (як і раніше)
-                fragment=''                            # Видаляємо "якір" (#) (як і раніше)
-            )
-            
-            return urlunparse(normalized)
-            
-        except Exception as e:
-            # Обробка випадків, коли передано некоректний URL
-            print(f"Помилка нормалізації '{url}': {e}")
-            raise ValueError(f"Не вдалося обробити URL: {e}")
+    def is_secure(self, url: str) -> bool:
+        """
+        Перевіряє, чи використовує URL захищений протокол (HTTPS).
+        """
+        try:
+            parsed = urlparse(url)
+            return parsed.scheme.lower() == 'https'
+        except Exception:
+            return False
