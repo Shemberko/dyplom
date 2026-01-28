@@ -1,13 +1,14 @@
-import os
 import math
-from typing import List, Dict, Optional, Any, Tuple
 import logging
+from typing import List, Dict, Optional, Any, Tuple
 
+# Спроба імпорту NumPy для оптимізації
 try:
     import numpy as np
 except ImportError:
     np = None
 
+# Імпорт клієнта Neo4j
 from app.services.neo4j.query_runner import query_runner as neo4j_client
 
 log = logging.getLogger(__name__)
@@ -19,11 +20,10 @@ def _l2_normalize(vec: List[float]) -> List[float]:
     norm = math.sqrt(norm_sq)
     return [x / norm for x in v] if norm > 1e-6 else [0.0] * len(v)
 
-
 def _cosine_scores_py(query: List[float], candidates: List[List[float]]) -> List[float]:
     """
     Обчислює косинусну подібність між вектором запиту та списком векторів-кандидатів 
-    за допомогою чистого Python (fallback, якщо немає NumPy).
+    за допомогою чистого Python (fallback).
     """
     qn = math.sqrt(sum(x * x for x in query))
     if qn == 0:
@@ -43,7 +43,6 @@ def _cosine_scores_py(query: List[float], candidates: List[List[float]]) -> List
              continue
 
         m = min(len(query), len(v))
-        # Скалярний добуток
         dot = sum(query[i] * v[i] for i in range(m))
         out.append(dot / (qn * vn))
     return out
@@ -51,41 +50,41 @@ def _cosine_scores_py(query: List[float], candidates: List[List[float]]) -> List
 
 class RecommendationService:
     """
-    Рекомендаційний сервіс: комбінує text & structural embeddings і повертає top-N сторінок.
+    Рекомендаційний сервіс: використовує гібридні ембедінги (GraphSAGE)
+    для пошуку найбільш релевантних сторінок.
     """
 
     def __init__(self, client: Any = None):
-        # Якщо клієнт не переданий, використовуємо модуль-рівневий екземпляр
         self.client = client or neo4j_client
 
-    def _fetch_user_embeddings(self, user_id: str) -> Dict[str, Optional[List[float]]]:
-        """Отримує обидва типи ембедінгів для користувача з Neo4j, використовуючи COALESCE."""
-        # [ПОКРАЩЕНО] Використовуємо COALESCE для надійності в обох полях
+    def _fetch_user_embedding(self, user_id: str) -> Optional[List[float]]:
+        """
+        Отримує гібридний ембедінг користувача (u.hybridEmbedding).
+        """
         q = """
         MATCH (u:User {id: $user_id})
-        RETURN u.textEmbedding AS text_emb, 
-               u.structuralEmbedding AS struct_emb
+        RETURN u.hybridEmbedding AS hybrid_emb
         """
         row = self.client.run_one(q, {"user_id": user_id}, write=False)
-        if not row:
-            log.warning(f"User {user_id} not found or has no embeddings.")
-            return {"text": None, "structural": None}
-        return {"text": row.get("text_emb"), "structural": row.get("struct_emb")}
+        
+        if not row or not row.get("hybrid_emb"):
+            log.warning(f"User {user_id} not found or has no hybrid embedding.")
+            return None
+            
+        return row.get("hybrid_emb")
 
     def _fetch_page_candidates(self, user_id: str, limit: int = 2000) -> List[Dict[str, Any]]:
         """
         Отримує сторінки-кандидати, які користувач ще не відвідав, 
-        з наявними ембедінгами.
+        з наявним гібридним ембедінгом.
         """
         q = """
         MATCH (p:Page)
-        WHERE NOT EXISTS { (u:User {id: $user_id})-[:VISIT]->(p) }
-        AND (p.structuralEmbedding IS NOT NULL)
-             OR (p.text_embedding IS NOT NULL)
+        WHERE p.hybridEmbedding IS NOT NULL
+          AND NOT EXISTS { (u:User {id: $user_id})-[:VISIT]->(p) }
         
-        RETURN elementId(p) AS elementId, p.id AS id, p.url AS url, p.title AS title, 
-               p.structuralEmbedding AS structural, 
-               p.text_embedding AS text
+        RETURN elementId(p) AS elementId, p.id AS id, p.url AS url, p.title AS title, p.image AS image,
+               p.hybridEmbedding AS embedding
         LIMIT $limit
         """
         
@@ -99,111 +98,77 @@ class RecommendationService:
                 "url": r.get("url"),
                 "title": r.get("title"),
                 "image": r.get("image"),
-                "structural": r.get("structural"),
-                "text": r.get("text"),
+                "embedding": r.get("embedding"), # Гібридний вектор
             })
         return out
 
     def _compute_scores(self,
-                        user_text: Optional[List[float]],
-                        user_struct: Optional[List[float]],
-                        candidates: List[Dict[str, Any]],
-                        weight_struct: float = 0.5) -> List[Tuple[Dict[str, Any], float, float, float]]:
+                        user_vec: List[float],
+                        candidates: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], float]]:
         """
-        Обчислює косинусну подібність для кожної модальності та об'єднує їх.
-        Повертає список (candidate, combined_score, text_score, struct_score).
+        Обчислює косинусну подібність між вектором користувача та кандидатами.
+        Повертає список (candidate, score).
         """
-        
-        # 1. Підготовка вхідних даних
-        text_embs = [c.get("text") or [] for c in candidates]
-        struct_embs = [c.get("structural") or [] for c in candidates]
-        
-        # 2. Обчислення текстових скорів
-        if user_text:
-            if np is not None:
-                try:
-                    U = np.array(_l2_normalize(user_text), dtype=float)
-                    C = np.array([_l2_normalize(e) for e in text_embs], dtype=float)
-                    text_scores = [float(x) for x in C.dot(U)]
-                except Exception:
-                    text_scores = _cosine_scores_py(user_text, text_embs)
-            else:
-                text_scores = _cosine_scores_py(user_text, text_embs)
-        else:
-            text_scores = [0.0] * len(candidates)
-        
-        # 3. Обчислення структурних скорів (аналогічно)
-        if user_struct:
-            if np is not None:
-                try:
-                    U = np.array(_l2_normalize(user_struct), dtype=float)
-                    C = np.array([_l2_normalize(e) for e in struct_embs], dtype=float)
-                    struct_scores = [float(x) for x in C.dot(U)]
-                except Exception:
-                    struct_scores = _cosine_scores_py(user_struct, struct_embs)
-            else:
-                struct_scores = _cosine_scores_py(user_struct, struct_embs)
-        else:
-            struct_scores = [0.0] * len(candidates)
+        if not user_vec:
+            return [(c, 0.0) for c in candidates]
 
-        # 4. Комбінування скорів (Гібридний Скоринг)
-        combined = []
-        weight_text = 1.0 - weight_struct
+        # Отримуємо список векторів кандидатів
+        cand_vecs = [c.get("embedding") or [] for c in candidates]
         
-        for c, ts, ss in zip(candidates, text_scores, struct_scores):
-            score = 0.0
+        scores = []
+        
+        # 1. Спроба використати NumPy (швидко)
+        if np is not None:
+            try:
+                U = np.array(_l2_normalize(user_vec), dtype=float)
+                # Нормалізуємо вектори кандидатів
+                C_list = [_l2_normalize(v) for v in cand_vecs]
+                
+                # Перевірка на порожні списки (щоб уникнути помилок створення np.array)
+                if not C_list or len(C_list[0]) != len(U):
+                    # Fallback якщо розмірності не співпадають або список порожній
+                    scores = _cosine_scores_py(user_vec, cand_vecs)
+                else:
+                    C = np.array(C_list, dtype=float)
+                    scores = [float(x) for x in C.dot(U)]
+            except Exception as e:
+                log.error(f"NumPy error: {e}. Falling back to pure Python.")
+                scores = _cosine_scores_py(user_vec, cand_vecs)
+        
+        # 2. Fallback на чистий Python (повільніше)
+        else:
+            scores = _cosine_scores_py(user_vec, cand_vecs)
             
-            # Логіка для випадку, коли одна з модальностей відсутня:
-            is_text_valid = (user_text is not None) and (ts != 0.0)
-            is_struct_valid = (user_struct is not None) and (ss != 0.0)
-            
-            if is_text_valid and is_struct_valid:
-                # Обидва вектори присутні
-                score = weight_struct * ss + weight_text * ts
-            elif is_text_valid:
-                # Тільки текстовий вектор
-                score = ts
-            elif is_struct_valid:
-                # Тільки структурний вектор
-                score = ss
-            
-            # [ЗМІНА] Повертаємо всі три скори
-            combined.append((c, score, ts, ss))
-            
-        return combined
+        # Об'єднуємо кандидата з його оцінкою
+        return list(zip(candidates, scores))
 
     def recommend_top_n(self,
                         user_id: str,
                         n: int = 10,
-                        candidate_limit: int = 2000,
-                        weight_struct: float = 0.5) -> List[Dict[str, Any]]:
+                        candidate_limit: int = 2000) -> List[Dict[str, Any]]:
         """
-        Основний метод: повертає top-n рекомендацій для user_id.
-        Повертається список словників: {id, elementId, url, title, score, text_score, struct_score}
+        Основний метод: повертає top-n рекомендацій для user_id на основі GraphSAGE Hybrid Embeddings.
         """
         
-        # 1. Отримати вектори користувача
-        user = self._fetch_user_embeddings(user_id)
-        user_text = user.get("text")
-        user_struct = user.get("structural")
-
-        if (not user_text) and (not user_struct):
-            log.info(f"Cannot recommend for user {user_id}: no embeddings found.")
+        # 1. Отримати вектор користувача
+        user_emb = self._fetch_user_embedding(user_id)
+        if not user_emb:
+            log.info(f"Cannot recommend for user {user_id}: no hybrid embedding found.")
             return []
 
-        # 2. Отримати сторінки-кандидати (виключаючи вже відвідані)
+        # 2. Отримати кандидатів
         candidates = self._fetch_page_candidates(user_id, limit=candidate_limit)
         if not candidates:
             log.info("No valid page candidates found.")
             return []
 
-        # 3. Обчислити та відсортувати скори
-        scored = self._compute_scores(user_text, user_struct, candidates, weight_struct=weight_struct)
+        # 3. Обчислити скори
+        scored = self._compute_scores(user_emb, candidates)
         
-        # Сортування виконується за другим елементом у кортежі (combined_score)
+        # 4. Відсортувати за спаданням скору
         scored.sort(key=lambda x: x[1], reverse=True)
         
-        # 4. Повернути top-N
+        # 5. Форматувати результат
         top = scored[:n]
         return [
             {
@@ -212,8 +177,6 @@ class RecommendationService:
                 "url": c.get("url"),
                 "title": c.get("title"),
                 "image": c.get("image"),
-                "score": float(score),
-                "text_score": float(ts),
-                "struct_score": float(ss)
-            } for c, score, ts, ss in top
+                "score": float(score)
+            } for c, score in top
         ]

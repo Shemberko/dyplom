@@ -8,25 +8,32 @@ backend_url = os.environ.get("CELERY_BACKEND_URL", 'redis://redis:6379/0')
 app = Celery('recommendation_app',
              broker=broker_url,
              backend=backend_url, # ВИКОРИСТОВУЄМО REDIS ДЛЯ BACKEND
-             include=['services.asyn.tasks']) 
+             include=['services.asyn.tasks.hybrid_embeddings']) 
 
 app.conf.update(
+    task_default_queue='default',
     beat_schedule={
-        'run-gds-node2vec-hourly': {
-            'task': 'services.asyn.tasks.run_gds_node2vec',
-            'schedule':  100.0,
-        },
-        'aggregate-user-profiles-30m': {
-            'task': 'services.asyn.tasks.trigger_user_profile_updates',
-            'schedule': 100.0,
-        },
-        'drop-gds-projection-daily': {
-            'task': 'services.asyn.tasks.drop_gds_projection',
+        'run-gds-graphSAGE-hourly': {
+            'task': 'services.asyn.tasks.hybrid_embeddings.task_build_graph_and_update_user',
             'schedule':  100.0,
         },
     },
     timezone='Europe/Kyiv'
 )
+
+#OLD LOGIC BELOW - TO BE DELETED AFTER TESTING
+#  'run-gds-node2vec-hourly': {
+#             'task': 'services.asyn.tasks.run_gds_node2vec',
+#             'schedule':  100.0,
+#         },
+#         'aggregate-user-profiles-30m': {
+#             'task': 'services.asyn.tasks.trigger_user_profile_updates',
+#             'schedule': 100.0,
+#         },
+#         'drop-gds-projection-daily': {
+#             'task': 'services.asyn.tasks.drop_gds_projection',
+#             'schedule':  100.0,
+#         },
 # from services.neo4j.query_runner import query_runner as neo4j_client
 # from services.asyn.tasks.structural_embeddings_building import run_gds_node2vec
 # from services.asyn.tasks.structural_embeddings_aggregation import task_update_structural_profile_batch

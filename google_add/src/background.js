@@ -1,4 +1,5 @@
 let API_URL = "http://127.0.0.1:8000"; // <-- Replace with your actual API URL
+let AUTH_URL = "http://127.0.0.1:8001";
 
 let tabDurations = {}; // { tabId: { opened: timestamp, active: ms, lastActive: timestamp, totalOpen: ms } }
 let activeTabId = null;
@@ -112,9 +113,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 setInterval(() => {
   chrome.storage.local.get([STORAGE_KEY], (result) => {
     // Якщо значення === false, ми просто виходимо з функції і нічого не надсилаємо
-    if (result[STORAGE_KEY] === false) {
-      return;
-    }
+    // if (result[STORAGE_KEY] === false) {
+    //   return;
+    // }
 
     const now = Date.now();
     chrome.storage.local.get(['closedTabIds'], (stored) => {
@@ -158,15 +159,6 @@ setInterval(() => {
     });
   });
 }, 60000); 
-
-
-
-
-
-
-
-
-
 
 function sendLogToServer() {
   chrome.storage.local.get([STORAGE_KEY], (result) => {
@@ -235,4 +227,78 @@ function sendLogToServer() {
 }
 
 // Send log every 10 minutes (600,000 ms)
-setInterval(sendLogToServer, 600000);
+setInterval(sendLogToServer, 6000);
+
+
+const getUserIdAndGenerateToken = () => {
+    
+    // Повертаємо Promise, який буде розв'язано або відхилено (resolve/reject)
+    // усередині callback-функції chrome.identity.
+    return new Promise((resolve, reject) => {
+        
+        // 1. Отримуємо ID користувача Chrome Identity
+        chrome.identity.getProfileUserInfo(async function(userInfo) {
+            
+            // Якщо є помилка Runtime або відсутній ID
+            if (chrome.runtime.lastError) {
+                return reject(new Error(chrome.runtime.lastError.message));
+            }
+            if (!userInfo.id) {
+                return reject(new Error("Помилка: Не вдалося отримати ID користувача Chrome (порожній ID)."));
+            }
+
+            const userId = userInfo.id; 
+            
+            // 2. Виконуємо fetch запит (використовуємо async/await всередині callback)
+            try {
+                const response = await fetch(`${AUTH_URL}/sso/generate-one-time-token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${response.status} - ${errorData.detail || 'Failed to generate token.'}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.oneTimeToken) {
+                    // Успіх: Розв'язуємо Promise, повертаючи об'єкт
+                    resolve({ oneTimeToken: data.oneTimeToken });
+                } else {
+                    reject(new Error("API не повернув одноразовий токен у відповідному форматі."));
+                }
+                
+            } catch (error) {
+                console.error("SSO Token Generation Failed:", error);
+                // Помилка: Відхиляємо Promise
+                reject(new Error(error.message || "Невідома помилка генерації токена."));
+            }
+        });
+    });
+};
+
+// ----------------------------------------------------------------------
+// Слухач chrome.runtime.onMessage залишається без змін:
+// ----------------------------------------------------------------------
+
+chrome.runtime.onMessage.addListener(
+    (request, sender, sendResponse) => {
+        
+        if (request.action === "REQUEST_SSO_TOKEN") {
+            
+            // Тепер getUserIdAndGenerateToken гарантовано повертає Promise
+            getUserIdAndGenerateToken()
+                .then(response => {
+                    sendResponse(response);
+                })
+                .catch(error => {
+                    sendResponse({ error: error.message });
+                });
+            
+            return true; // Зберігаємо Service Worker живим
+        }
+    }
+);

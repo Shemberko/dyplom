@@ -115,7 +115,8 @@ class JsonMessageProcessor:
                     page_props = {
                         "title": info.get("title"),
                         "meta_description": info.get("metaDescription"),
-                        "text_sample": info.get("textSample")
+                        "text_sample": info.get("textSample"),
+                        "image" : info.get("previewImage")
                     }
                     if embedding:
                         page_props["text_embedding"] = embedding
