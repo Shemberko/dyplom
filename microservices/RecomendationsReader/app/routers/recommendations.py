@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends, HTTPException
 from typing import List, Dict, Any, Optional
 
 # Імпортуємо ваш сервіс (припускаємо, що він у файлі services.py)
 from app.services.recomendation_builder_service import RecommendationService
+from app.dependencies.auth import get_current_user_id
 
 router = APIRouter()
 rec_service = RecommendationService() # Ініціалізація сервісу
 
-@router.get("/{user_id}")
+@router.get("")
 async def get_recommendations(
-    user_id: str,
+    user_id: str = Depends(get_current_user_id),
     page: int = Query(1, ge=1, description="Номер сторінки (починаючи з 1)"),
     size: int = Query(10, ge=1, le=100, description="Кількість елементів на сторінці"),
     weight_struct: float = Query(0.5, ge=0.0, le=1.0, description="Вага структурних ембедінгів")
@@ -32,7 +33,6 @@ async def get_recommendations(
         user_id=user_id,
         n=limit_needed, # Отримуємо топ-N (де N = кінець поточної сторінки)
         candidate_limit=2000, # Скільки всього кандидатів розглядаємо
-        weight_struct=weight_struct
     )
 
     if not recommendations:

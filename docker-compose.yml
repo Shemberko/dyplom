@@ -15,17 +15,17 @@ services:
       - AMQP_URL=amqp://guest:guest@rabbitmq/
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
 
-  clickscollector:
-    build: ./microservices/ClicksCollector
-    container_name: clickscollector
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      jaeger:
-        condition: service_started
-    environment:
-      - AMQP_URL=amqp://guest:guest@rabbitmq/
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+  # clickscollector:
+  #   build: ./microservices/ClicksCollector
+  #   container_name: clickscollector
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     jaeger:
+  #       condition: service_started
+  #   environment:
+  #     - AMQP_URL=amqp://guest:guest@rabbitmq/
+  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
 
 
   rawdatacollector:
@@ -133,7 +133,6 @@ services:
     extends:
       service: reco_base
     container_name: reco_beat
-    # Celery Beat читає розклад (кожні 30 хв, 1 годину)
     command: celery -A services.asyn.celery_worker beat -l info
 
   # 1.4. REDIS Server (Для Celery Backend) - ПОТРІБЕН, ЯКЩО ВИКОРИСТОВУЄТЬСЯ

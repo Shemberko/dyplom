@@ -19,8 +19,6 @@ except Exception as e:
 # Параметри
 EMBEDDING_DIM = 384
 
-
-
 @app.task
 def run_gds_node2vec(neo4j_client: Any) -> str:
     """
@@ -37,7 +35,7 @@ def run_gds_node2vec(neo4j_client: Any) -> str:
             print(f"Info: Graph '{graph_name}' did not exist. Drop ignored.")
         else:
             print(f"Warning: Error during graph drop (ignoring): {e}")
-        pass 
+        pass
     
     # Крок 1: Створити проєкцію (використовуємо id() для сумісності з GDS 2.23.0)
     PROJECTION_QUERY = f"""

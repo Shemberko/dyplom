@@ -1,3 +1,10 @@
+# --- Спочатку вказуємо джерело для легкої версії PyTorch ---
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# --- Вказуємо сам PyTorch явно, щоб він взявся з лінка вище ---
+torch
+
+# --- Ваші бібліотеки ---
 celery
 redis
 neo4j

@@ -148,3 +148,39 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
+
+const FRONTEND_ORIGIN = 'http://localhost:5173'; 
+
+// Слухаємо повідомлення, які надходять від контексту сторінки (нашого Vue App)
+window.addEventListener("message", (event) => {
+
+     if (event.origin !== FRONTEND_ORIGIN) {
+        // Ви маєте побачити цей лог, якщо проблема в HTTPS/HTTP або слешах
+        console.warn(`Content Script: Повідомлення проігноровано. Очікується: ${FRONTEND_ORIGIN}, Отримано: ${event.origin}`);
+        return;
+    }
+    
+    // Перевірка безпеки
+    if (event.origin !== FRONTEND_ORIGIN || !event.data || event.data.action !== "REQUEST_SSO_FROM_FRONTEND") {
+        return;
+    }
+    console.log("Content Script: Отримано запит на SSO токен від фронтенду.");
+    
+    // Отримано запит: відправляємо його до Background Script
+    chrome.runtime.sendMessage({ action: "REQUEST_SSO_TOKEN" }, (response) => {
+        
+        // Перевірка помилок
+        if (chrome.runtime.lastError) {
+            console.error("Content Script Error:", chrome.runtime.lastError.message);
+            response = { error: chrome.runtime.lastError.message || "Помилка зв'язку з Background Worker." };
+        }
+
+        // Надсилаємо відповідь (токен або помилку) назад до Vue App через postMessage
+        console.log("Content Script: Надсилаємо відповідь SSO токена назад до фронтенду.", response);
+        window.postMessage({ 
+            action: "SSO_RESPONSE_TO_FRONTEND", 
+            ...response 
+        }, event.origin); 
+    });
+});
