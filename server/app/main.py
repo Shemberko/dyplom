@@ -6,7 +6,6 @@ from app.services.comunication.web_socket_broker import WebSocketBroker
 from app.services.comunication.web_socket_rx_service import WebSocketRxService
 from app.services.comunication.rabbit_mq_service import RabbitMQBroker
 
-# --- OpenTelemetry setup ---
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider

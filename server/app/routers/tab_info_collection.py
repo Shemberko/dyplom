@@ -15,13 +15,5 @@ async def post_collected_data(request: Request):
 
     await broker.connect()
     await broker.send(data)
-    # save_url = os.getenv("SAVE_SERVICE_URL", "http://recomendationsreader:8001/data/save_data")
-    # try:
-    #     async with httpx.AsyncClient() as client:
-    #         resp = await client.post(save_url, json=data, timeout=10.0)
-    #         resp.raise_for_status()
-    #         save_resp = resp.json()
-    # except Exception as e:
-    #     return {"status": "queued", "save_service": "error", "error": str(e)}
 
     return {"status": "success"}

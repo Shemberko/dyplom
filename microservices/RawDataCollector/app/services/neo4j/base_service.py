@@ -5,8 +5,7 @@ from neo4j import GraphDatabase, Driver
 class BaseService:
 
     def __init__(self, uri: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
-         # uri = uri or os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-        uri = uri or os.getenv("NEO4J_URI", "neo4j://localhost:7687") # for local tests
+        uri = uri or os.getenv("NEO4J_URI", "neo4j://localhost:7687")
         user = user or os.getenv("NEO4J_USER", "neo4j")
         password = password or os.getenv("NEO4J_PASSWORD", "password")
         self._driver: Driver = GraphDatabase.driver(uri, auth=(user, password))
@@ -54,36 +53,29 @@ class BaseService:
                             rel_type: str,
                             rel_properties: Optional[Dict[str, Any]] = None,
                             additive_metrics: Optional[list] = None) -> Optional[Dict[str, Any]]:
-        """
-        Creates a relationship between two existing nodes.
-        - start_label, start_key, start_val:
-            Properties to find the "start" node (e.g., User, id, 123)
-        - end_label, end_key, end_val:
-            Properties to find the "end" node (e.g., Article, url, "http://...")
-        - rel_type:
-            Type of relationship (e.g., "WROTE", "LIKED")
-        - rel_properties:
-            Optional dict of properties for the relationship itself (e.g., {"since": 2023, "count": 1})
-        - additive_metrics:
-            Optional list of property names (strings) that should be added (incremented)
-            instead of overwritten. The values to add must be present in rel_properties.
-        Returns properties of the created relationship or None.
-        """
+        
         if rel_properties is None:
             rel_properties = {}
         if additive_metrics is None:
             additive_metrics = []
 
-        # Знаходимо вузли, MERGE зв'язок, встановлюємо/оновлюємо загальні властивості,
-        # а потім інкрементуємо властивості з additive_metrics (додаємо їх значення).
+        static_props = {k: v for k, v in rel_properties.items() if k not in additive_metrics}
+        additive_props = {k: v for k, v in rel_properties.items() if k in additive_metrics}
+
         cypher = f"""
         MATCH (a:{start_label} {{{start_key}: $start_val}})
         MATCH (b:{end_label} {{{end_key}: $end_val}})
         MERGE (a)-[r:{rel_type}]->(b)
-        SET r += $props
-        WITH r, $props AS props, $additive_metrics AS additive_metrics
-        UNWIND additive_metrics AS m
-        SET r[m] = coalesce(r[m], 0) + coalesce(props[m], 0)
+        
+        // 1. Оновлюємо тільки статичні поля (вони безпечно перезаписуються)
+        SET r += $static_props
+        
+        // 2. Додаємо адитивні метрики
+        // Ми проходимось по ключах переданих адитивних властивостей
+        FOREACH (k IN keys($additive_props) | 
+            SET r[k] = coalesce(r[k], 0) + $additive_props[k]
+        )
+        
         RETURN r
         """
 
@@ -93,8 +85,8 @@ class BaseService:
                     cypher,
                     start_val=start_val,
                     end_val=end_val,
-                    props=rel_properties,
-                    additive_metrics=additive_metrics
+                    static_props=static_props,
+                    additive_props=additive_props
                 ).single()
             )
 

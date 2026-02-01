@@ -1,0 +1,1 @@
+{"root":["./src/shims-vue.d.ts","./src/composables/api.ts","./src/composables/objectconvertors.ts","./src/entrypoints/main.ts","./src/router/index.ts","./src/stores/notification.ts","./src/stores/user.ts","./src/types/user.d.ts","./src/entrypoints/app.vue","./src/views/pages/home.vue","./src/views/pages/recommendations.vue"],"version":"5.9.3"}

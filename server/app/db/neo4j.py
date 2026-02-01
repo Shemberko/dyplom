@@ -1,11 +1,11 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  # читає файл .env і додає змінні в оточення
+load_dotenv()
 
 NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")  # додай, якщо є в .env
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 print(f"NEO4J_URI: {NEO4J_URI}")
 print(f"NEO4J_USERNAME: {NEO4J_USERNAME}")

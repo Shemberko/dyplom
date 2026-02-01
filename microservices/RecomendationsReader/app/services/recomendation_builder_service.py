@@ -1,182 +1,110 @@
-import math
+# CREATE VECTOR INDEX page_hybrid_index IF NOT EXISTS
+# FOR (p:Page)
+# ON (p.hybridEmbedding)
+# OPTIONS {indexConfig: {
+#  `vector.dimensions`: 128,
+#  `vector.similarity_function`: 'cosine'
+# }}
+
+
 import logging
-from typing import List, Dict, Optional, Any, Tuple
-
-# Спроба імпорту NumPy для оптимізації
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
-# Імпорт клієнта Neo4j
+from typing import List, Dict, Any, Optional
 from app.services.neo4j.query_runner import query_runner as neo4j_client
 
 log = logging.getLogger(__name__)
 
-def _l2_normalize(vec: List[float]) -> List[float]:
-    """Нормалізація L2-нормою (довжиною) вектора."""
-    v = [float(x) for x in vec]
-    norm_sq = sum(x * x for x in v)
-    norm = math.sqrt(norm_sq)
-    return [x / norm for x in v] if norm > 1e-6 else [0.0] * len(v)
-
-def _cosine_scores_py(query: List[float], candidates: List[List[float]]) -> List[float]:
-    """
-    Обчислює косинусну подібність між вектором запиту та списком векторів-кандидатів 
-    за допомогою чистого Python (fallback).
-    """
-    qn = math.sqrt(sum(x * x for x in query))
-    if qn == 0:
-        return [0.0] * len(candidates)
-
-    out = []
-    for c in candidates:
-        if not c:
-            out.append(0.0)
-            continue
-            
-        v = [float(x) for x in c]
-        vn = math.sqrt(sum(x * x for x in v))
-        
-        if vn == 0:
-             out.append(0.0)
-             continue
-
-        m = min(len(query), len(v))
-        dot = sum(query[i] * v[i] for i in range(m))
-        out.append(dot / (qn * vn))
-    return out
-
-
 class RecommendationService:
-    """
-    Рекомендаційний сервіс: використовує гібридні ембедінги (GraphSAGE)
-    для пошуку найбільш релевантних сторінок.
-    """
-
     def __init__(self, client: Any = None):
         self.client = client or neo4j_client
 
-    def _fetch_user_embedding(self, user_id: str) -> Optional[List[float]]:
+    def recommend_top_n(self, user_id: str, n: int = 10) -> List[Dict[str, Any]]:
         """
-        Отримує гібридний ембедінг користувача (u.hybridEmbedding).
+        Повертає top-n рекомендацій, використовуючи Neo4j Vector Index.
+        Фільтрує сторінки, які користувач відвідував за останні 30 днів.
         """
-        q = """
-        MATCH (u:User {id: $user_id})
-        RETURN u.hybridEmbedding AS hybrid_emb
-        """
-        row = self.client.run_one(q, {"user_id": user_id}, write=False)
         
-        if not row or not row.get("hybrid_emb"):
-            log.warning(f"User {user_id} not found or has no hybrid embedding.")
-            return None
-            
-        return row.get("hybrid_emb")
+        user_emb = self._fetch_user_embedding(user_id)
+        
+        if not user_emb:
+            log.info(f"User {user_id} has no profile. Falling back to trending.")
+            return self._get_trending_fallback(n)
 
-    def _fetch_page_candidates(self, user_id: str, limit: int = 2000) -> List[Dict[str, Any]]:
+        return self._vector_search(user_id, user_emb, n)
+
+    def _fetch_user_embedding(self, user_id: str) -> Optional[List[float]]:
+        query = """
+        MATCH (u:User {id: $user_id})
+        RETURN u.hybridEmbedding AS emb
         """
-        Отримує сторінки-кандидати, які користувач ще не відвідав, 
-        з наявним гібридним ембедінгом.
+        res = self.client.run_one(query, {"user_id": user_id})
+        return res.get("emb") if res else None
+
+    def _vector_search(self, user_id: str, embedding: List[float], n: int) -> List[Dict[str, Any]]:
         """
-        q = """
-        MATCH (p:Page)
-        WHERE p.hybridEmbedding IS NOT NULL
-          AND NOT EXISTS { (u:User {id: $user_id})-[:VISIT]->(p) }
+        Використовує db.index.vector.queryNodes для надшвидкого пошуку.
+        """
         
-        RETURN elementId(p) AS elementId, p.id AS id, p.url AS url, p.title AS title, p.image AS image,
-               p.hybridEmbedding AS embedding
+        # Ми запитуємо n * 5 кандидатів, щоб мати запас після фільтрації переглянутих
+        candidates_to_fetch = n * 5
+        
+        query = """
+        CALL db.index.vector.queryNodes('page_hybrid_index', $k, $embedding)
+        YIELD node AS page, score
+        OPTIONAL MATCH (u:User {id: $user_id})-[v:VISIT]->(page)
+        WHERE v IS NULL 
+           OR datetime(v.visitedAt[-1]) < datetime() - duration('P30D')
+        RETURN 
+            elementId(page) as elementId,
+            page.url as url,
+            page.title as title,
+            page.image as image,
+            score
+        
         LIMIT $limit
         """
         
-        rows = self.client.run_query(q, {"limit": limit, "user_id": user_id}, write=False)
-        
-        out = []
-        for r in rows:
-             out.append({
-                "elementId": r.get("elementId"),
-                "id": r.get("id"),
-                "url": r.get("url"),
-                "title": r.get("title"),
-                "image": r.get("image"),
-                "embedding": r.get("embedding"), # Гібридний вектор
+        try:
+            results = self.client.run_query(query, {
+                "user_id": user_id,
+                "embedding": embedding,
+                "k": candidates_to_fetch,
+                "limit": n
             })
-        return out
-
-    def _compute_scores(self,
-                        user_vec: List[float],
-                        candidates: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], float]]:
-        """
-        Обчислює косинусну подібність між вектором користувача та кандидатами.
-        Повертає список (candidate, score).
-        """
-        if not user_vec:
-            return [(c, 0.0) for c in candidates]
-
-        # Отримуємо список векторів кандидатів
-        cand_vecs = [c.get("embedding") or [] for c in candidates]
-        
-        scores = []
-        
-        # 1. Спроба використати NumPy (швидко)
-        if np is not None:
-            try:
-                U = np.array(_l2_normalize(user_vec), dtype=float)
-                # Нормалізуємо вектори кандидатів
-                C_list = [_l2_normalize(v) for v in cand_vecs]
-                
-                # Перевірка на порожні списки (щоб уникнути помилок створення np.array)
-                if not C_list or len(C_list[0]) != len(U):
-                    # Fallback якщо розмірності не співпадають або список порожній
-                    scores = _cosine_scores_py(user_vec, cand_vecs)
-                else:
-                    C = np.array(C_list, dtype=float)
-                    scores = [float(x) for x in C.dot(U)]
-            except Exception as e:
-                log.error(f"NumPy error: {e}. Falling back to pure Python.")
-                scores = _cosine_scores_py(user_vec, cand_vecs)
-        
-        # 2. Fallback на чистий Python (повільніше)
-        else:
-            scores = _cosine_scores_py(user_vec, cand_vecs)
             
-        # Об'єднуємо кандидата з його оцінкою
-        return list(zip(candidates, scores))
+            recommendations = []
+            for r in results:
+                recommendations.append({
+                    "id": r.get("elementId"),
+                    "url": r.get("url"),
+                    "title": r.get("title"),
+                    "image": r.get("image"),
+                    "score": round(r.get("score", 0.0), 4)
+                })
+            
+            return recommendations
 
-    def recommend_top_n(self,
-                        user_id: str,
-                        n: int = 10,
-                        candidate_limit: int = 2000) -> List[Dict[str, Any]]:
-        """
-        Основний метод: повертає top-n рекомендацій для user_id на основі GraphSAGE Hybrid Embeddings.
-        """
-        
-        # 1. Отримати вектор користувача
-        user_emb = self._fetch_user_embedding(user_id)
-        if not user_emb:
-            log.info(f"Cannot recommend for user {user_id}: no hybrid embedding found.")
+        except Exception as e:
+            log.error(f"Vector search failed: {e}")
             return []
 
-        # 2. Отримати кандидатів
-        candidates = self._fetch_page_candidates(user_id, limit=candidate_limit)
-        if not candidates:
-            log.info("No valid page candidates found.")
-            return []
-
-        # 3. Обчислити скори
-        scored = self._compute_scores(user_emb, candidates)
-        
-        # 4. Відсортувати за спаданням скору
-        scored.sort(key=lambda x: x[1], reverse=True)
-        
-        # 5. Форматувати результат
-        top = scored[:n]
+    def _get_trending_fallback(self, n: int) -> List[Dict[str, Any]]:
+        """
+        Повертає популярні сторінки, якщо у юзера ще немає профілю.
+        Наприклад, сторінки з найбільшою кількістю візитів за 24 години.
+        """
+        query = """
+        MATCH (p:Page)<-[v:VISIT]-()
+        WHERE datetime(v.visitedAt[-1]) > datetime() - duration('P1D')
+        RETURN p.url as url, p.title as title, p.image as image, count(v) as visits
+        ORDER BY visits DESC
+        LIMIT $limit
+        """
+        results = self.client.run_query(query, {"limit": n})
         return [
             {
-                "id": c.get("id"),
-                "elementId": c.get("elementId"),
-                "url": c.get("url"),
-                "title": c.get("title"),
-                "image": c.get("image"),
-                "score": float(score)
-            } for c, score in top
+                "url": r["url"], 
+                "title": r["title"], 
+                "image": r["image"], 
+                "score": 0.0
+            } for r in results
         ]

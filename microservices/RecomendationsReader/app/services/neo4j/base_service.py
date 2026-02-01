@@ -10,8 +10,7 @@ class BaseService:
     """
 
     def __init__(self, uri: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
-          # uri = uri or os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-        uri = uri or os.getenv("NEO4J_URI", "neo4j://localhost:7687") # for local tests
+        uri = uri or os.getenv("NEO4J_URI", "neo4j://localhost:7687")
         user = user or os.getenv("NEO4J_USER", "neo4j")
         password = password or os.getenv("NEO4J_PASSWORD", "password")
         self._driver: Driver = GraphDatabase.driver(uri, auth=(user, password))
@@ -79,8 +78,6 @@ class BaseService:
         if additive_metrics is None:
             additive_metrics = []
 
-        # Знаходимо вузли, MERGE зв'язок, встановлюємо/оновлюємо загальні властивості,
-        # а потім інкрементуємо властивості з additive_metrics (додаємо їх значення).
         cypher = f"""
         MATCH (a:{start_label} {{{start_key}: $start_val}})
         MATCH (b:{end_label} {{{end_key}: $end_val}})

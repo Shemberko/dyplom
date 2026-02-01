@@ -7,17 +7,13 @@ from typing import Any, Dict, List, Optional
 from neo4j.exceptions import ClientError
 from jose import jwt
 from fastapi import HTTPException 
-
-# [ІМПОРТ NEO4J QUERY RUNNER]
-# Припустіть правильний відносний або абсолютний імпорт до вашого QueryRunner
 from app.services.neo4j.query_runner import QueryRunner 
 
 log = logging.getLogger(__name__)
 
-# --- КОНСТАНТИ БЕЗПЕКИ ---
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-very-secret-key-for-jwt-signing")
-ALGORITHM = "HS256"
-SSO_TOKEN_EXPIRY_SECONDS = 100 # One-Time Token діє 30 секунд
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "secret-key")
+ALGORITHM =  os.getenv("JWT_ALGORITHM", "HS256") 
+SSO_TOKEN_EXPIRY_SECONDS = 100
 JWT_EXPIRY_HOURS = 2
 
 class AuthService(QueryRunner):
@@ -29,23 +25,20 @@ class AuthService(QueryRunner):
     def __init__(self) -> None:
         super().__init__()
 
-    # --- 1. DAO (Data Access Object) Методи (Робота з Neo4j) ---
-
     def _neo4j_find_or_create_user(self, chrome_id: str) -> Dict[str, Any]:
         """
         Знаходить користувача за Chrome ID (у полі id) або створює нового.
         Використовує $chrome_id як єдиний ідентифікатор.
         """
         cypher = """
-        MERGE (u:User {id: $chrome_id})    // Використовуємо 'id' для унікальності
+        MERGE (u:User {id: $chrome_id})
         ON CREATE SET 
             u.createdAt = datetime(),
             u.roles = ['user']                
         ON MATCH SET 
-            u.lastLogin = datetime()          // Оновлюємо дату останнього входу
+            u.lastLogin = datetime()
         RETURN u.id AS id, u.roles AS roles
         """
-        # Використовуємо self.run_one з QueryRunner
         user_data = self.run_one(cypher, {"chrome_id": chrome_id})
         
         if not user_data:
@@ -69,7 +62,7 @@ class AuthService(QueryRunner):
             isUsed: false
         })
         """
-        # Передаємо 'user_id' як параметр $user_id
+
         self.run_query(cypher, {
             "user_id": user_id, 
             "token": token, 
@@ -96,10 +89,7 @@ class AuthService(QueryRunner):
             
         return user_data
 
-    # --- 2. JWT Утиліти ---
-
     def create_jwt_token(self, user_id: str, roles: List[str]) -> str:
-    # Використовуйте datetime.now(timezone.utc) замість utcnow()
         now = datetime.now(timezone.utc)
         expire = now + timedelta(hours=JWT_EXPIRY_HOURS) 
         
@@ -110,18 +100,15 @@ class AuthService(QueryRunner):
         }
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
-    # --- 3. Основна Бізнес-Логіка SSO ---
 
     def generate_one_time_token(self, chrome_id: str) -> str:
         """ 
         Обробляє запит від Chrome Extension.
         """
         user_data = self._neo4j_find_or_create_user(chrome_id)
-        # Використовуємо 'id', отриманий з повернення Cypher
         user_id = user_data["id"] 
         
         sso_token = str(uuid.uuid4())
-        # Передаємо user_id (замість internal_user_id)
         self._neo4j_save_sso_token(user_id, sso_token) 
         
         return sso_token
@@ -132,13 +119,10 @@ class AuthService(QueryRunner):
         Обмінює One-Time Token на постійний JWT.
         """
         try:
-            # 1. Атомарна перевірка та анулювання токена в Neo4j
             user_data = self._neo4j_atomic_exchange_token(sso_token)
-            # Отримуємо 'id'
             user_id = user_data["id"] 
             user_roles = user_data.get("roles", ["user"])
             
-            # 2. Генерувати JWT
             jwt_token = self.create_jwt_token(user_id, user_roles)
             
             return jwt_token
@@ -152,5 +136,4 @@ class AuthService(QueryRunner):
             log.error(f"Unexpected error during token exchange: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Internal server error")
 
-# Створюємо єдиний екземпляр сервісу для використання в роутерах FastAPI
 auth_service = AuthService()

@@ -14,25 +14,26 @@ services:
     environment:
       - AMQP_URL=amqp://guest:guest@rabbitmq/
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-
-  # clickscollector:
-  #   build: ./microservices/ClicksCollector
-  #   container_name: clickscollector
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #     jaeger:
-  #       condition: service_started
-  #   environment:
-  #     - AMQP_URL=amqp://guest:guest@rabbitmq/
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-
+  ollama:
+    build: ./microservices/ollama_custom 
+    container_name: ollama_service
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: always
+    healthcheck:
+      test: "ollama list || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rawdatacollector:
     build: ./microservices/RawDataCollector
     container_name: rawdatacollector
     volumes:
       - ./microservices/RawDataCollector:/app:rw
+      - huggingface_cache:/root/.cache/huggingface
     ports:
       - "5678:5678"
     command: >
@@ -40,6 +41,7 @@ services:
     env_file:
       - ./microservices/RawDataCollector/.env
     environment:
+      - OLLAMA_HOST=http://ollama:11434
       - NEO4J_URI=${NEO4J_URI}
       - NEO4J_USER=${NEO4J_USERNAME}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
@@ -51,6 +53,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
+      ollama:
+        condition: service_healthy
     stdin_open: true
     tty: true
 
@@ -135,11 +139,12 @@ services:
     container_name: reco_beat
     command: celery -A services.asyn.celery_worker beat -l info
 
-  # 1.4. REDIS Server (Для Celery Backend) - ПОТРІБЕН, ЯКЩО ВИКОРИСТОВУЄТЬСЯ
   redis:
     image: redis:latest
     container_name: redis
     ports:
       - "6379:6379"
   
-  
+volumes:
+  ollama_data:
+  huggingface_cache:
