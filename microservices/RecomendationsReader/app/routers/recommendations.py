@@ -1,12 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, Depends, HTTPException
 from typing import List, Dict, Any, Optional
-
-# Імпортуємо ваш сервіс (припускаємо, що він у файлі services.py)
 from app.services.recomendation_builder_service import RecommendationService
 from app.dependencies.auth import get_current_user_id
 
 router = APIRouter()
-rec_service = RecommendationService() # Ініціалізація сервісу
+rec_service = RecommendationService()
 
 @router.get("")
 async def get_recommendations(
@@ -18,22 +16,10 @@ async def get_recommendations(
     """
     Отримати рекомендації для користувача з пагінацією.
     """
-    
-    # 1. Рахуємо, скільки всього кандидатів нам треба взяти з бази, 
-    # щоб забезпечити цю сторінку.
-    # Наприклад, якщо page=2, size=10, нам треба мінімум 20 найкращих результатів.
     limit_needed = page * size
-    
-    # Ми беремо трохи більше кандидатів (candidate_limit), щоб мати з чого вибирати 
-    # після сортування за схожістю. Якщо у вас всього 2000 кандидатів,
-    # то candidate_limit=2000 - це ок.
-    # Але для пагінації ми передаємо у recommend_top_n саме `limit_needed`.
-    
     recommendations = rec_service.recommend_top_n(
         user_id=user_id,
-        n=limit_needed, # Отримуємо топ-N (де N = кінець поточної сторінки)
-        candidate_limit=2000, # Скільки всього кандидатів розглядаємо
-    )
+        n=limit_needed)
 
     if not recommendations:
         return {
@@ -41,19 +27,17 @@ async def get_recommendations(
             "meta": {"page": page, "size": size, "total_found": 0}
         }
 
-    # 2. Робимо "зріз" (Slicing) для конкретної сторінки
     start_index = (page - 1) * size
     end_index = start_index + size
     
     paginated_data = recommendations[start_index:end_index]
 
-    # 3. Повертаємо дані разом з мета-інформацією
     return {
         "data": paginated_data,
         "meta": {
             "page": page, 
             "size": size, 
-            "total_found": len(recommendations), # Скільки всього знайшли релевантного
+            "total_found": len(recommendations),
             "has_next": end_index < len(recommendations)
         }
     }

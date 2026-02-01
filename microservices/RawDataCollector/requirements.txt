@@ -8,3 +8,7 @@ sentence_transformers
 debugpy
 boto3
 warcio
+ollama
+beautifulsoup4
+langdetect
+warcio

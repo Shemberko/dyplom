@@ -1,264 +1,214 @@
 import traceback
-from typing import List, Optional, Tuple, Any, Dict
+from typing import List, Any, Dict, Tuple
 from services.asyn.celery_worker import app
 from services.neo4j.query_runner import query_runner as neo4j_client
 
-# Параметри
-HYBRID_DIM = 128  # Розмірність вихідного вектора GraphSAGE
+HYBRID_DIM = 128
+EMBEDDING_SIZE = 384
+MODEL_NAME = "production_graphsage_model"
+GRAPH_NAME = "temp_projection_graph"
 
-# ==============================================================================
-# 1. ОСНОВНА ЛОГІКА GRAPHSAGE (Винесена в окрему функцію)
-# ==============================================================================
-
-def _execute_graphsage_logic(client: Any) -> str:
-    """
-    Внутрішня функція, яка виконує логіку GraphSAGE (drop, project, train, stream, write).
-    Повертає рядок-результат.
-    """
-    graph_name = "hybridUserPageGraph"
-    model_name = "hybridModel"
-    
-    # Очищення старих проекцій та моделей
+def _check_model_exists(client: Any, model_name: str) -> bool:
+    """Перевіряє, чи існує навчена модель у пам'яті GDS."""
     try:
-        client.run_query(f"CALL gds.graph.drop('{graph_name}', false)")
-        client.run_query(f"CALL gds.beta.model.drop('{model_name}', false)")
+        res = client.run_query(f"CALL gds.model.exists('{model_name}') YIELD exists RETURN exists")
+        return res[0]['exists'] if res else False
     except Exception:
-        pass
+        return False
 
-    # Крок 1: Проєкція графа
-    # Текст (text_embedding) використовується як вхідні ознаки (features).
+def _project_graph(client: Any):
+    """Створює проєкцію графа в пам'яті. Використовується і для Train, і для Predict."""
+    try: client.run_query(f"CALL gds.graph.drop('{GRAPH_NAME}', false)")
+    except: pass
+
     PROJECTION_QUERY = f"""
-    CALL gds.graph.project.cypher(
-        '{graph_name}',
-        'MATCH (n) WHERE n:User OR n:Page 
-         RETURN id(n) AS id, labels(n) AS labels, 
-                coalesce(n.text_embedding, [i IN range(1, 384) | 0.0]) AS features',
-        'MATCH (u:User)-[v:VISIT]->(p:Page) RETURN id(u) AS source, id(p) AS target',
-        {{validateRelationships: false}} 
-    )
+        CALL gds.graph.project.cypher(
+            '{GRAPH_NAME}',
+            'MATCH (n) WHERE n:User OR n:Page OR n:Category OR n:Keyword
+             RETURN id(n) AS id, labels(n) AS labels, 
+                    coalesce(n.text_embedding, [i IN range(1, {EMBEDDING_SIZE}) | 0.0]) AS features',
+            'MATCH (s)-[r]->(t) 
+             WHERE type(r) IN ["VISIT", "IN_CATEGORY", "HAS_TAG"]
+             RETURN id(s) AS source, id(t) AS target, 
+                    CASE type(r)
+                        WHEN "VISIT" THEN coalesce(r.active_time, 1.0)
+                        ELSE 1.0
+                    END AS weight',
+            {{validateRelationships: false}} 
+        )
     """
+    print(f"GDS: Проєктування графа '{GRAPH_NAME}'...")
+    client.run_query(PROJECTION_QUERY)
 
-    # Крок 2: Навчання моделі GraphSAGE (Content-Driven параметри)
+def _train_graphsage(client: Any):
+    """
+    ПОВНЕ ПЕРЕНАВЧАННЯ. Запускається рідко (наприклад, раз на добу/тиждень).
+    Вчить модель розуміти нові зв'язки (наприклад, що 'Python' тепер часто пов'язаний з 'AI').
+    """
+    print("GDS: Повне перенавчання моделі (Training)...")
+    
+    try: client.run_query(f"CALL gds.beta.model.drop('{MODEL_NAME}', false)")
+    except: pass
+
     TRAIN_QUERY = f"""
-    CALL gds.beta.graphSage.train('{graph_name}', {{
-        modelName: '{model_name}',
+    CALL gds.beta.graphSage.train('{GRAPH_NAME}', {{
+        modelName: '{MODEL_NAME}',
         featureProperties: ['features'],
         embeddingDimension: {HYBRID_DIM},
-        
         aggregator: 'pool',       
         activationFunction: 'relu',
-        sampleSizes: [5, 5],      
-        epochs: 5,                
-        learningRate: 0.01
+        sampleSizes: [25, 10],
+        epochs: 20,              
+        learningRate: 0.001
     }})
     """
+    client.run_query(TRAIN_QUERY)
+    print("GDS: Модель успішно навчена.")
 
-    # Крок 3: Стрімінг та запис результатів
-    STREAM_QUERY = f"""
-    CALL gds.beta.graphSage.stream('{graph_name}', {{
-        modelName: '{model_name}'
-    }})
-    YIELD nodeId, embedding
-    WITH gds.util.asNode(nodeId) AS n, embedding
-    WHERE n:Page
-    RETURN elementId(n) AS elementId, embedding
+def _apply_graphsage(client: Any) -> int:
     """
-
-    WRITE_QUERY = """
-    UNWIND $streamResult AS row
-    MATCH (p:Page) WHERE elementId(p) = row.elementId
-    SET p.hybridEmbedding = row.embedding
-    RETURN count(p) AS nodesUpdated
+    ІНКРЕМЕНТАЛЬНЕ ОНОВЛЕННЯ. Запускається часто.
+    Використовує ВЖЕ НАВЧЕНУ модель, щоб згенерувати вектори для нових сторінок.
     """
+    print("GDS: Генерація векторів (Inference)...")
+    
+    WRITE_QUERY = f"""
+        CALL gds.beta.graphSage.write('{GRAPH_NAME}', {{
+            modelName: '{MODEL_NAME}',
+            writeProperty: 'hybridEmbedding'
+        }})
+        YIELD nodePropertiesWritten
+    """
+    res = client.run_query(WRITE_QUERY)
+    count = res[0]['nodePropertiesWritten'] if res else 0
+    return count
 
+def run_graphsage_pipeline(client: Any, force_retrain: bool = False) -> str:
+    """
+    Розумний пайплайн:
+    1. Проєктує граф.
+    2. Якщо моделі немає або force_retrain=True -> Тренує.
+    3. Якщо модель є -> Просто застосовує її (це в 100 разів швидше).
+    """
     try:
-        print("GDS: Проєктування гібридного графа...")
-        client.run_query(PROJECTION_QUERY)
+        _project_graph(client)
         
-        print("GDS: Навчання GraphSAGE (Content-Focused)...")
-        client.run_query(TRAIN_QUERY)
+        model_exists = _check_model_exists(client, MODEL_NAME)
         
-        print("GDS: Запис гібридних ембедінгів...")
-        stream_result = client.run_query(STREAM_QUERY)
+        if force_retrain or not model_exists:
+            _train_graphsage(client)
+            action = "TRAINED & APPLIED"
+        else:
+            action = "APPLIED ONLY (Fast Mode)"
+            
+        count = _apply_graphsage(client)
         
-        if stream_result:
-            write_res = client.run_query(WRITE_QUERY, {'streamResult': stream_result})
-            count = write_res[0]['nodesUpdated'] if write_res else 0
-            return f"Оновлено {count} сторінок гібридними ембедінгами."
+        # Прибираємо проєкцію з пам'яті
+        client.run_query(f"CALL gds.graph.drop('{GRAPH_NAME}', false)")
         
-        return "Немає результатів GraphSAGE для запису."
-
+        return f"{action}: Оновлено {count} вузлів."
     except Exception as e:
         traceback.print_exc()
-        raise e # Прокидаємо помилку наверх
-
-
-# ==============================================================================
-# 2. АГРЕГАЦІЯ ПРОФІЛЮ (Допоміжні функції)
-# ==============================================================================
-
-def validate_vector(vec: Optional[List[float]]) -> Optional[List[float]]:
-    if vec is None: return None
-    return [float(x) for x in vec]
-
-def aggregate_hybrid_visits(visit_records: List[Dict[str, Any]]) -> Tuple[List[float], float, int]:
-    """Агрегує гібридні вектори сторінок у зважену суму."""
-    embeddings: List[List[float]] = []
-    weights: List[float] = []
-    
-    for r in visit_records:
-        emb = r.get("emb")
-        w = r.get("w")
-        if emb:
-            embeddings.append([float(x) for x in emb])
-            weights.append(float(w or 0.0))
-
-    if not embeddings:
-        return ([], 0.0, 0)
-
-    dim = len(embeddings[0])
-    sum_w_emb = [0.0] * dim
-    total_w = 0.0
-    
-    for emb, w in zip(embeddings, weights):
-        if len(emb) != dim:
-            emb = (emb + [0.0] * dim)[:dim]
-        
-        for i in range(dim):
-            sum_w_emb[i] += emb[i] * w
-        total_w += w
-
-    return (sum_w_emb, total_w, dim)
+        raise e
 
 def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ago: int = 24) -> str:
     """
-    Пакетне оновлення ЄДИНОГО гібридного профілю користувача.
+    Оновлює профіль користувача.
+    
+    ПОКРАЩЕННЯ:
+    1. Reward Signal: Якщо це був перехід з рекомендації (source='recommendation'),
+       ми множимо вагу на 2.0. Це каже моделі: "Користувачу це сподобалось, давай ще такого!".
+    2. Text Focus: Базова вага залежить від active_time.
     """
     client = neo4j_client_arg if neo4j_client_arg else neo4j_client
-    print(f"Оновлення гібридного профілю для {user_id}...")
 
     FETCH_Q = """
     MATCH (u:User {id: $user_id})-[v:VISIT]->(p:Page)
     WHERE p.hybridEmbedding IS NOT NULL
-      AND v.active_time IS NOT NULL 
-      AND any(ts IN v.visitedAt WHERE datetime(ts) >= datetime() - duration({hours: $hours_ago}))
-    RETURN p.hybridEmbedding AS emb, 
-           (coalesce(toFloat(v.active_time), 0.0) + 0.1 * coalesce(toFloat(v.total_open_time), 0.0)) AS w
+      AND v.visitedAt IS NOT NULL
+    WITH u, p, v, 
+         datetime(v.visitedAt[-1]) AS last_visit_time,
+         coalesce(v.active_time, 0.5) AS reading_time
+    
+    WHERE last_visit_time >= datetime() - duration({hours: $hours_ago})
+    
+    WITH p.hybridEmbedding AS emb,
+         (reading_time * exp(-0.05 * duration.inDays(last_visit_time, datetime()).days) *
+          CASE WHEN v.source = 'recommendation' THEN 2.0 ELSE 1.0 END
+         ) AS w
+    
+    RETURN emb, w
     """
     
     try:
         records = client.run_query(FETCH_Q, {'user_id': user_id, 'hours_ago': hours_ago})
         (batch_sum, batch_w, dim) = aggregate_hybrid_visits(records)
         
-        if not batch_sum:
-            return "Немає нових відвідувань з гібридними ембедінгами."
+        if not batch_sum: return "No updates."
 
-        STATE_Q = """
-        MATCH (u:User {id: $user_id}) 
-        RETURN u.sumWeightedHybridEmbedding AS old_sum, u.totalHybridWeight AS old_w
-        """
+        STATE_Q = """MATCH (u:User {id: $user_id}) 
+                     RETURN u.sumWeightedHybridEmbedding AS old_sum, u.totalHybridWeight AS old_w"""
         old_profile = client.run_one(STATE_Q, {'user_id': user_id}) or {}
         
         old_sum = validate_vector(old_profile.get("old_sum")) or [0.0] * dim
         old_w = float(old_profile.get("old_w") or 0.0)
 
-        new_sum = [s_o + s_b for s_o, s_b in zip(old_sum, batch_sum)]
-        new_w = old_w + batch_w
+        DECAY = 0.98
+        
+        new_sum = [ (s_o * DECAY) + s_b for s_o, s_b in zip(old_sum, batch_sum)]
+        new_w = (old_w * DECAY) + batch_w
         new_emb = [x / new_w for x in new_sum] if new_w > 0 else new_sum
 
         WRITE_Q = """
         MATCH (u:User {id: $user_id})
         SET u.sumWeightedHybridEmbedding = $sum,
             u.totalHybridWeight = $total_w,
-            u.hybridEmbedding = $embedding
-        RETURN u.id
+            u.hybridEmbedding = $embedding,
+            u.profileUpdatedAt = datetime()
         """
-        client.run_query(WRITE_Q, {
-            'user_id': user_id, 
-            'sum': new_sum, 
-            'total_w': new_w, 
-            'embedding': new_emb
-        })
-        return "Профіль оновлено."
+        client.run_query(WRITE_Q, {'user_id': user_id, 'sum': new_sum, 'total_w': new_w, 'embedding': new_emb})
+        return "Profile Updated (with Reward Signal)."
 
     except Exception as e:
         traceback.print_exc()
         raise e
 
+def validate_vector(vec): return [float(x) for x in vec] if vec else None
 
-# ==============================================================================
-# 3. CELERY ТАСКИ
-# ==============================================================================
-
-# @app.task
-# def run_gds_graphsage(neo4j_client_arg: Any = None) -> str:
-#     """Окрема таска для запуску лише GraphSAGE."""
-#     client = neo4j_client_arg if neo4j_client_arg else neo4j_client
-#     try:
-#         return _execute_graphsage_logic(client)
-#     except Exception as e:
-#         return f"Помилка GraphSAGE: {e}"
-
-# @app.task(bind=True, max_retries=3)
-# def task_update_hybrid_profile(self, user_id: str, hours_ago: int = 24):
-#     """Окрема таска для оновлення лише юзера."""
-#     try:
-#         return update_user_hybrid_profile_batch(neo4j_client, user_id, hours_ago)
-#     except Exception as exc:
-#         raise self.retry(exc=exc, countdown=60)
+def aggregate_hybrid_visits(records):
+    embeddings = []; weights = []
+    for r in records:
+        if r.get("emb"):
+            embeddings.append([float(x) for x in r.get("emb")])
+            weights.append(float(r.get("w") or 0.0))
+    if not embeddings: return ([], 0.0, 0)
+    dim = len(embeddings[0])
+    sum_emb = [0.0]*dim; total_w=0.0
+    for emb, w in zip(embeddings, weights):
+        for i in range(dim): sum_emb[i] += emb[i]*w
+        total_w += w
+    return (sum_emb, total_w, dim)
 
 
-# ==============================================================================
-# 3. ОСНОВНА ТАСКА (ОНОВЛЕНА ДЛЯ ВСІХ КОРИСТУВАЧІВ)
-# ==============================================================================
 
 @app.task(bind=True, max_retries=3)
-def task_build_graph_and_update_user(self, user_id: str = None, hours_ago: int = 24):
+def task_build_graph_and_update_user(self, user_id: str = None, force_retrain: bool = True):
     """
-    ПОВНИЙ ПАЙПЛАЙН:
-    1. Будує/Оновлює гібридні ембедінги сторінок (GraphSAGE) для ВСЬОГО ГРАФА.
-    2. Якщо передано user_id -> оновлює тільки цього користувача.
-    3. Якщо user_id=None -> оновлює ВСІХ користувачів у базі.
+    Розумний пайплайн:
+    - Якщо викликаємо часто -> просто оновлюємо вектори (швидко).
+    - Якщо force_retrain=True -> повне навчання.
     """
     try:
-        print(f"=== ЗАПУСК ПАЙПЛАЙНУ (User: {user_id if user_id else 'ALL'}) ===")
-        
-        # Етап 1: GraphSAGE (Глобально)
-        print(">> Етап 1: Генерація ембедінгів сторінок...")
-        sage_result = _execute_graphsage_logic(neo4j_client)
-        print(f">> GraphSAGE завершено: {sage_result}")
-        
-        # Етап 2: Оновлення профілів
-        updated_users_count = 0
+        sage_msg = run_graphsage_pipeline(neo4j_client, force_retrain=force_retrain)
+        print(f">> GraphSAGE: {sage_msg}")
         
         if user_id:
-            # Оновлюємо конкретного користувача (для тестів)
-            print(f">> Етап 2: Оновлення одного користувача {user_id}...")
-            res = update_user_hybrid_profile_batch(neo4j_client, user_id, hours_ago)
-            print(f"   User {user_id}: {res}")
-            updated_users_count = 1
+            update_user_hybrid_profile_batch(neo4j_client, user_id)
         else:
-            # Оновлюємо ВСІХ користувачів (для продакшену/розкладу)
-            print(">> Етап 2: Отримання списку всіх користувачів...")
-            
-            # Знаходимо всіх юзерів
-            users_query = "MATCH (u:User) RETURN u.id as id"
-            users = neo4j_client.run_query(users_query)
-            
-            print(f">> Знайдено {len(users)} користувачів. Починаємо оновлення...")
-            
+            users = neo4j_client.run_query("MATCH (u:User) RETURN u.id as id")
             for u in users:
-                uid = u['id']
-                try:
-                    res = update_user_hybrid_profile_batch(neo4j_client, uid, hours_ago)
-                    # Можна логувати тільки помилки або успіхи, щоб не забивати консоль
-                    # print(f"   User {uid}: {res}") 
-                    updated_users_count += 1
-                except Exception as e:
-                    print(f"!!! Помилка оновлення для user {uid}: {e}")
-                    
-        return f"SUCCESS. Graph: {sage_result} | Updated Users: {updated_users_count}"
+                update_user_hybrid_profile_batch(neo4j_client, u['id'])
         
+        return "Pipeline Done"
     except Exception as exc:
-        print(f"!!! Помилка в пайплайні: {exc}")
         raise self.retry(exc=exc, countdown=60)

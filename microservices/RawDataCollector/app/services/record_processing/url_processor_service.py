@@ -25,7 +25,6 @@ class UrlProcessorService:
     def __init__(self, remove_www: bool = False, lower_path: bool = True):
         self.remove_www = remove_www
         self.lower_path = lower_path
-        # кешована множина для прискорення перевірки
         self._params_to_remove = {p.lower() for p in self.PARAMS_TO_REMOVE}
 
     def normalize(self, url: str) -> str:
@@ -35,7 +34,6 @@ class UrlProcessorService:
         if url == "":
             raise ValueError("Порожній URL")
 
-        # Додати схему, якщо її нема (щоб urlparse коректно наповнив netloc)
         if '://' not in url:
             url = 'http://' + url
 
@@ -44,7 +42,6 @@ class UrlProcessorService:
 
             scheme = (parsed.scheme or 'http').lower()
 
-            # hostname -> IDNA
             hostname = parsed.hostname or ''
             try:
                 hostname_idna = hostname.encode('idna').decode('ascii')
@@ -54,7 +51,6 @@ class UrlProcessorService:
             if self.remove_www and hostname_idna.startswith('www.'):
                 hostname_idna = hostname_idna[4:]
 
-            # Збираємо netloc (зберігаємо user:pass при наявності)
             netloc = ''
             if parsed.username:
                 netloc += parsed.username
@@ -66,7 +62,6 @@ class UrlProcessorService:
             if port and not ((scheme == 'http' and port == 80) or (scheme == 'https' and port == 443)):
                 netloc += f":{port}"
 
-            # Path: декодуємо, чистимо, стискаємо слеші, видаляємо сесійні токени
             path = parsed.path or '/'
             path = unquote(path)
             path = self._SESSION_RE.sub('', path)
@@ -75,11 +70,9 @@ class UrlProcessorService:
                 path = path.rstrip('/')
             if self.lower_path:
                 path = path.lower()
-            # Повторно кодуємо шлях, дозволяючи безпечні символи
             safe_chars = "/~:@&+$,=;%-._!~*'()"
             path = quote(path, safe=safe_chars)
 
-            # Query: розбираємо, фільтруємо, видаляємо пусті значення, сортуємо
             query_params = parse_qs(parsed.query, keep_blank_values=True)
             filtered = {}
             for k, vals in query_params.items():
@@ -87,7 +80,6 @@ class UrlProcessorService:
                     continue
                 cleaned = [v for v in vals if v != '']
                 if cleaned:
-                    # сорт значень для детермінізму
                     filtered[k] = sorted(cleaned)
 
             sorted_items = sorted(filtered.items(), key=lambda x: x[0])
@@ -116,7 +108,6 @@ class UrlProcessorService:
             parsed = urlparse(url)
             if not parsed.netloc and not parsed.path:
                 return ""
-            # Якщо urlparse не розпізнав netloc (наприклад, url без схеми), спробуємо взяти path
             domain = parsed.netloc if parsed.netloc else parsed.path.split('/')[0]
             return domain.lower()
         except Exception:
