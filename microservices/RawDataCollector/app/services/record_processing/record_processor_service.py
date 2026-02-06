@@ -67,23 +67,15 @@ class RecordProcessorService:
             self.history.create_or_update_page(canonical_url, page_props)
 
         else:
-            # --- СЦЕНАРІЙ Б: НОВА СТОРІНКА ---
-            # Тільки тут запускаємо важку артилерію (AI)
-            
-            should_keep = self.filtration.should_process(
-                raw_url, title, text_content
-            )
+            should_keep = self.filtration.should_process(raw_url, title, text_content)
             if not should_keep:
                 return
 
-            # Аналіз контенту
             ai_data = self.categorization.categorize(text_content)
             vector = self.embeddings(text_content)
             
             final_image = entry.get("image_url")
             if not final_image:
-                # Фечимо картинку тільки для нових сторінок, де її немає
-                # (Або можна додати логіку оновлення, якщо в існуючої немає)
                 final_image = self.image_fetcher.get_preview_image(canonical_url)
 
             page_props = {

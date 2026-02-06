@@ -67,11 +67,7 @@ class BaseService:
         MATCH (b:{end_label} {{{end_key}: $end_val}})
         MERGE (a)-[r:{rel_type}]->(b)
         
-        // 1. Оновлюємо тільки статичні поля (вони безпечно перезаписуються)
         SET r += $static_props
-        
-        // 2. Додаємо адитивні метрики
-        // Ми проходимось по ключах переданих адитивних властивостей
         FOREACH (k IN keys($additive_props) | 
             SET r[k] = coalesce(r[k], 0) + $additive_props[k]
         )
