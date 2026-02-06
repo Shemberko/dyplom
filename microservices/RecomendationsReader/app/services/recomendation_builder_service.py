@@ -44,7 +44,6 @@ class RecommendationService:
         Використовує db.index.vector.queryNodes для надшвидкого пошуку.
         """
         
-        # Ми запитуємо n * 5 кандидатів, щоб мати запас після фільтрації переглянутих
         candidates_to_fetch = n * 5
         
         query = """

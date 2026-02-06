@@ -16,6 +16,7 @@ def _check_model_exists(client: Any, model_name: str) -> bool:
     except Exception:
         return False
 
+# TODO maybe add "HAS_TAG" also
 def _project_graph(client: Any):
     """Створює проєкцію графа в пам'яті. Використовується і для Train, і для Predict."""
     try: client.run_query(f"CALL gds.graph.drop('{GRAPH_NAME}', false)")
@@ -28,7 +29,7 @@ def _project_graph(client: Any):
              RETURN id(n) AS id, labels(n) AS labels, 
                     coalesce(n.text_embedding, [i IN range(1, {EMBEDDING_SIZE}) | 0.0]) AS features',
             'MATCH (s)-[r]->(t) 
-             WHERE type(r) IN ["VISIT", "IN_CATEGORY", "HAS_TAG"]
+             WHERE type(r) IN ["VISIT", "IN_CATEGORY"]
              RETURN id(s) AS source, id(t) AS target, 
                     CASE type(r)
                         WHEN "VISIT" THEN coalesce(r.active_time, 1.0)
@@ -42,7 +43,7 @@ def _project_graph(client: Any):
 
 def _train_graphsage(client: Any):
     """
-    ПОВНЕ ПЕРЕНАВЧАННЯ. Запускається рідко (наприклад, раз на добу/тиждень).
+    ПОВНЕ ПЕРЕНАВЧАННЯ.
     Вчить модель розуміти нові зв'язки (наприклад, що 'Python' тепер часто пов'язаний з 'AI').
     """
     print("GDS: Повне перенавчання моделі (Training)...")
@@ -54,6 +55,7 @@ def _train_graphsage(client: Any):
     CALL gds.beta.graphSage.train('{GRAPH_NAME}', {{
         modelName: '{MODEL_NAME}',
         featureProperties: ['features'],
+        relationshipWeightProperty: 'weight',
         embeddingDimension: {HYBRID_DIM},
         aggregator: 'pool',       
         activationFunction: 'relu',
@@ -67,7 +69,7 @@ def _train_graphsage(client: Any):
 
 def _apply_graphsage(client: Any) -> int:
     """
-    ІНКРЕМЕНТАЛЬНЕ ОНОВЛЕННЯ. Запускається часто.
+    ІНКРЕМЕНТАЛЬНЕ ОНОВЛЕННЯ.
     Використовує ВЖЕ НАВЧЕНУ модель, щоб згенерувати вектори для нових сторінок.
     """
     print("GDS: Генерація векторів (Inference)...")
@@ -103,7 +105,6 @@ def run_graphsage_pipeline(client: Any, force_retrain: bool = False) -> str:
             
         count = _apply_graphsage(client)
         
-        # Прибираємо проєкцію з пам'яті
         client.run_query(f"CALL gds.graph.drop('{GRAPH_NAME}', false)")
         
         return f"{action}: Оновлено {count} вузлів."
@@ -111,6 +112,7 @@ def run_graphsage_pipeline(client: Any, force_retrain: bool = False) -> str:
         traceback.print_exc()
         raise e
 
+# Що краще агрегувати, текстові ембединги чи гібридні ?
 def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ago: int = 24) -> str:
     """
     Оновлює профіль користувача.
@@ -124,7 +126,7 @@ def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_
 
     FETCH_Q = """
     MATCH (u:User {id: $user_id})-[v:VISIT]->(p:Page)
-    WHERE p.hybridEmbedding IS NOT NULL
+    WHERE p.text_embedding IS NOT NULL
       AND v.visitedAt IS NOT NULL
     WITH u, p, v, 
          datetime(v.visitedAt[-1]) AS last_visit_time,
@@ -132,7 +134,7 @@ def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_
     
     WHERE last_visit_time >= datetime() - duration({hours: $hours_ago})
     
-    WITH p.hybridEmbedding AS emb,
+    WITH p.text_embedding AS emb,
          (reading_time * exp(-0.05 * duration.inDays(last_visit_time, datetime()).days) *
           CASE WHEN v.source = 'recommendation' THEN 2.0 ELSE 1.0 END
          ) AS w
@@ -147,7 +149,7 @@ def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_
         if not batch_sum: return "No updates."
 
         STATE_Q = """MATCH (u:User {id: $user_id}) 
-                     RETURN u.sumWeightedHybridEmbedding AS old_sum, u.totalHybridWeight AS old_w"""
+                     RETURN u.sumWeightedTextEmbedding AS old_sum, u.totalWeight AS old_w"""
         old_profile = client.run_one(STATE_Q, {'user_id': user_id}) or {}
         
         old_sum = validate_vector(old_profile.get("old_sum")) or [0.0] * dim
@@ -161,13 +163,13 @@ def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_
 
         WRITE_Q = """
         MATCH (u:User {id: $user_id})
-        SET u.sumWeightedHybridEmbedding = $sum,
-            u.totalHybridWeight = $total_w,
-            u.hybridEmbedding = $embedding,
+        SET u.sumWeightedTextEmbedding = $sum,
+            u.totalWeight = $total_w,
+            u.text_embedding = $embedding,
             u.profileUpdatedAt = datetime()
         """
         client.run_query(WRITE_Q, {'user_id': user_id, 'sum': new_sum, 'total_w': new_w, 'embedding': new_emb})
-        return "Profile Updated (with Reward Signal)."
+        return "Profile Updated."
 
     except Exception as e:
         traceback.print_exc()
