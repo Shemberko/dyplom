@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from ollama import Client
 
 class CategorizationService:
@@ -11,7 +11,7 @@ class CategorizationService:
         self.categories = [
             "Technology", "News", "Social Media", "Shopping", 
             "Education", "Entertainment", "Finance", "Adult", "Gambling",
-            "Health", "Science", "Travel", "Food"
+            "Health", "Science", "Travel", "Food", "Sports", "Gaming"
         ]
 
     def categorize(self, text: str) -> Dict[str, Any]:
@@ -20,24 +20,25 @@ class CategorizationService:
         prompt = f"""
         You are a smart content classifier.
         
-        Task: Classify the text into a category.
+        Task: Assign 1 to 3 categories to the text.
         
         OPTION 1 (Preferred): Choose from this list:
         {json.dumps(self.categories)}
         
-        OPTION 2 (New Category): If the content clearly DOES NOT fit the list, CREATE a new category name.
+        OPTION 2 (New Category): If needed, CREATE a new category name (short, descriptive noun).
         
-        Rules for New Categories:
-        1. Must be short (1-3 words).
-        2. Must be descriptive nouns (e.g., "Beekeeping", "Quantum Physics", "Architecture").
-        3. DO NOT use generic words like "Page", "Website", "Home", "Info", "Miscellaneous".
+        Rules:
+        1. Return a list of strings in the "categories" field.
+        2. Max 3 categories.
+        3. Determine if content is unsafe.
+        4. Write a short summary.
         
         Content:
         "{truncated_text}"
 
         Return JSON:
         {{
-            "category": "String (from list OR new)",
+            "categories": ["Category1", "Category2"],
             "is_unsafe": boolean,
             "summary": "Short summary"
         }}
@@ -51,24 +52,30 @@ class CategorizationService:
                 options={
                     'temperature': 0.3,
                     'num_ctx': 1024,
-                    'num_predict': 100,
+                    'num_predict': 128,
                 },
                 keep_alive='30m'
             )
             
             result = json.loads(response['message']['content'])
             
-            cat = result.get("category", "General")
+            cats = result.get("categories", [])
+            if isinstance(cats, str):
+                cats = [cats]
             
-            if len(cat) < 3 or cat.lower() in ["page", "text", "content", "other"]:
-                result["category"] = "General"
-                
+            clean_cats = []
+            for c in cats:
+                if len(c) > 2 and c.lower() not in ["page", "text", "other"]:
+                    clean_cats.append(c)
+            
+            result["categories"] = clean_cats if clean_cats else ["General"]
+            
             return result
             
         except Exception as e:
             print(f"Error calling Ollama: {e}")
             return {
-                "category": "General",
+                "categories": ["General"],
                 "is_unsafe": False,
                 "summary": "Error analyzing"
             }

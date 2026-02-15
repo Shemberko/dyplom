@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from neo4j import GraphDatabase, Driver
 
 class BaseService:
@@ -89,3 +89,20 @@ class BaseService:
         if not record:
             return None
         return dict(record["r"])
+    
+    def run_query(self, cypher: str, params: Optional[Dict[str, Any]] = None, write: Optional[bool] = None) -> List[Dict[str, Any]]:
+        """
+        Виконує cypher-запит і повертає список рядків (кожен як dict).
+        """
+        if not self._driver:
+            raise Exception("Neo4j driver не ініціалізовано.")
+        
+        try:
+            records, _, _ = self._driver.execute_query(
+                cypher,
+                params or {},
+                database_=os.getenv("NEO4J_DATABASE", "neo4j")
+            )
+            return [dict(record) for record in records]
+        except Exception as e:
+            raise

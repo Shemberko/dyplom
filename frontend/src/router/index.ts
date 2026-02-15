@@ -1,13 +1,7 @@
 // src/router/index.ts
 
 import { createRouter, createWebHistory } from 'vue-router';
-// Import Pinia Store та API-композабл
-import { useUserStore } from '@/stores/user';
-import { api } from '@/composables/api'; // Імпорт вашого API-хука
-
-// ... оголошення routes (маршрутів) ...
 const routes = [
-  // ... ваші маршрути ...
   { path: '/', name: 'Home', component: () => import('@/views/pages/Home.vue') },
   { 
     path: '/recommendations', 
@@ -15,6 +9,12 @@ const routes = [
     component: () => import('@/views/pages/Recommendations.vue'),
     meta: { requiresAuth: true } 
   },
+  {
+    path: '/statistic', 
+    name: 'Statistic', 
+    component: () => import('@/views/pages/Statistic.vue'),
+    meta: { requiresAuth: true } 
+  }
 ];
 
 const router = createRouter({

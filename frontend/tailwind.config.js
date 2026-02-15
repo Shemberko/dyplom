@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'sans-serif'], // Рекомендую додати шрифт Inter у index.html
+        sans: ['Inter', 'sans-serif'],
       }
     },
   },

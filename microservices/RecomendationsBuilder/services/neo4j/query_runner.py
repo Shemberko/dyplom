@@ -16,7 +16,6 @@ class QueryRunner(BaseService):
     def __init__(self) -> None:
         super().__init__()
 
-    # [ВИПРАВЛЕНО 4] Основний метод виконання запиту
     def run_query(self, cypher: str, params: Optional[Dict[str, Any]] = None, write: Optional[bool] = None) -> List[Dict[str, Any]]:
         """
         Виконує cypher-запит і повертає список рядків (кожен як dict).
