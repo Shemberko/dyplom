@@ -1,9 +1,5 @@
-// src/content.js
-
-// Ключ для збереження стану. Інші скрипти мають перевіряти цей ключ перед записом даних.
 const STORAGE_KEY = 'tracking_enabled';
 
-// Створення стилів для наших елементів
 const style = document.createElement('style');
 style.textContent = `
   .my-ext-container {
@@ -33,7 +29,6 @@ style.textContent = `
     animation: my-ext-blink 1s infinite;
   }
 
-  /* Кнопка спочатку прихована і з'являється при наведенні на контейнер (або крапку) */
   .my-ext-toggle-btn {
     display: none;
     font-size: 10px;
@@ -57,23 +52,19 @@ style.textContent = `
   }
 `;
 
-// Функція ініціалізації
 function init() {
-  // Перевіряємо стан у сховищі при завантаженні сторінки
   chrome.storage.local.get([STORAGE_KEY], (result) => {
-    // Якщо значення не встановлено (undefined) або true -> ввімкнено
     const isTracking = result[STORAGE_KEY] !== false; 
     
     if (isTracking) {
       createOverlay();
     } else {
-      createEnableButton(); // Якщо вимкнено, показуємо кнопку для увімкнення
+      createEnableButton();
     }
   });
 }
 
 function createOverlay() {
-  // Видаляємо, якщо вже існує, щоб не дублювати
   removeOverlay();
 
   document.head.appendChild(style);
@@ -90,12 +81,10 @@ function createOverlay() {
   btn.className = 'my-ext-toggle-btn';
   btn.innerText = 'Вимкнути';
   
-  // Логіка кнопки вимкнення (Stop Recording)
   btn.onclick = () => {
-    // Встановлюємо прапорець tracking_enabled в false
     chrome.storage.local.set({ [STORAGE_KEY]: false }, () => {
       removeOverlay();
-      createEnableButton(); // Ховаємо крапку, показуємо кнопку відновлення
+      createEnableButton();
       console.log('Трекінг вимкнено користувачем (tracking_enabled = false)');
     });
   };
@@ -105,7 +94,6 @@ function createOverlay() {
   document.body.appendChild(container);
 }
 
-// Функція для створення кнопки відновлення (Start Recording)
 function createEnableButton() {
   if (document.getElementById('my-ext-enable-btn')) return;
 
@@ -152,31 +140,24 @@ if (document.readyState === 'loading') {
 
 const FRONTEND_ORIGIN = 'http://localhost:5173'; 
 
-// Слухаємо повідомлення, які надходять від контексту сторінки (нашого Vue App)
 window.addEventListener("message", (event) => {
 
      if (event.origin !== FRONTEND_ORIGIN) {
-        // Ви маєте побачити цей лог, якщо проблема в HTTPS/HTTP або слешах
         console.warn(`Content Script: Повідомлення проігноровано. Очікується: ${FRONTEND_ORIGIN}, Отримано: ${event.origin}`);
         return;
     }
     
-    // Перевірка безпеки
     if (event.origin !== FRONTEND_ORIGIN || !event.data || event.data.action !== "REQUEST_SSO_FROM_FRONTEND") {
         return;
     }
     console.log("Content Script: Отримано запит на SSO токен від фронтенду.");
-    
-    // Отримано запит: відправляємо його до Background Script
     chrome.runtime.sendMessage({ action: "REQUEST_SSO_TOKEN" }, (response) => {
         
-        // Перевірка помилок
         if (chrome.runtime.lastError) {
             console.error("Content Script Error:", chrome.runtime.lastError.message);
             response = { error: chrome.runtime.lastError.message || "Помилка зв'язку з Background Worker." };
         }
 
-        // Надсилаємо відповідь (токен або помилку) назад до Vue App через postMessage
         console.log("Content Script: Надсилаємо відповідь SSO токена назад до фронтенду.", response);
         window.postMessage({ 
             action: "SSO_RESPONSE_TO_FRONTEND", 

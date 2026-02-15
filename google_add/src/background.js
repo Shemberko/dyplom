@@ -112,7 +112,6 @@ function sendLogToServer() {
             })
             .catch(err => {
                 console.error("Send log failed:", err);
-                // Можна також логувати помилку в storage, якщо потрібно
             });
         });
     });

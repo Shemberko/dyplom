@@ -41,24 +41,27 @@ class RecommendationService:
 
     def _vector_search(self, user_id: str, embedding: List[float], n: int) -> List[Dict[str, Any]]:
         """
-        Використовує db.index.vector.queryNodes для надшвидкого пошуку.
+        Використовує db.index.vector.queryNodes для пошуку.
+        Повністю виключає сторінки, які користувач коли-небудь відвідував.
         """
-        
-        candidates_to_fetch = n * 5
+        candidates_to_fetch = n * 10 
         
         query = """
         CALL db.index.vector.queryNodes('page_hybrid_index', $k, $embedding)
         YIELD node AS page, score
-        OPTIONAL MATCH (u:User {id: $user_id})-[v:VISIT]->(page)
-        WHERE v IS NULL 
-           OR datetime(v.visitedAt[-1]) < datetime() - duration('P30D')
+        
+        // Використовуємо NOT EXISTS для повної фільтрації відвіданих сторінок
+        WHERE NOT EXISTS {
+            MATCH (u:User {id: $user_id})-[v:VISIT]->(page)
+        }
+
         RETURN 
             elementId(page) as elementId,
             page.url as url,
             page.title as title,
             page.image as image,
             score
-        
+        ORDER BY score DESC
         LIMIT $limit
         """
         
@@ -70,17 +73,13 @@ class RecommendationService:
                 "limit": n
             })
             
-            recommendations = []
-            for r in results:
-                recommendations.append({
-                    "id": r.get("elementId"),
-                    "url": r.get("url"),
-                    "title": r.get("title"),
-                    "image": r.get("image"),
-                    "score": round(r.get("score", 0.0), 4)
-                })
-            
-            return recommendations
+            return [{
+                "id": r.get("elementId"),
+                "url": r.get("url"),
+                "title": r.get("title"),
+                "image": r.get("image"),
+                "score": round(r.get("score", 0.0), 4)
+            } for r in results]
 
         except Exception as e:
             log.error(f"Vector search failed: {e}")

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from neo4j import Driver
 from .base_service import BaseService
 
@@ -14,28 +14,48 @@ class HistoryService(BaseService):
         props["id"] = user_id
         return super().create_or_update_node("User", "id", props)
 
-    def create_or_update_page(self, url: str, props: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def create_or_update_page(self, 
+                              url: str, 
+                              props: Optional[Dict[str, Any]] = None, 
+                              categories: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Створює сторінку і автоматично лінкує її до списку категорій.
+        
+        :param categories: Список словників [{'name': 'Tech', 'embedding': [...]}, ...]
+        """
         props = props or {}
-        category_name = props.pop("category", None)
         props["url"] = url
         page_node = super().create_or_update_node("Page", "url", props)
 
-        if category_name:
-            clean_cat_name = category_name.strip()
-            self.create_or_update_category(clean_cat_name)
+        if categories:
+            for cat_data in categories:
+                cat_name = cat_data.get("name")
+                cat_vector = cat_data.get("embedding") # Може бути None
 
-            super().create_relationship(
-                start_label="Page", start_key="url", start_val=url,
-                end_label="Category", end_key="name", end_val=clean_cat_name,
-                rel_type="IN_CATEGORY",
-                rel_properties={}
-            )
+                if cat_name:
+                    clean_name = cat_name.strip()
+
+                    query = """
+                    MERGE (c:Category {name: $name})
+                    ON CREATE SET c.createdAt = datetime()
+                    SET c.updatedAt = datetime()
+                    WITH c
+                    WHERE $vector IS NOT NULL
+                    SET c.text_embedding = $vector
+                    """
+                    super().run_query(query, {"name": clean_name, "vector": cat_vector})
+
+                    super().create_relationship(
+                        start_label="Page", start_key="url", start_val=url,
+                        end_label="Category", end_key="name", end_val=clean_name,
+                        rel_type="IN_CATEGORY"
+                    )
 
         return page_node
     
-    def create_or_update_category(self, name: str) -> Dict[str, Any]:
+    def create_or_update_category(self, name: str, vector: Any) -> Dict[str, Any]:
         """Допоміжний метод для створення вузла категорії"""
-        return super().create_or_update_node("Category", "name", {"name": name})
+        return super().create_or_update_node("Category", "name", {"name": name, "text_embedding": vector})
 
     def page_exists(self, url: str) -> bool:
         node = super().get_node("Page", "url", url)
