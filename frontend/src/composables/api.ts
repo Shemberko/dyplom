@@ -198,6 +198,47 @@ export const api = () => {
         }
     }
 
+    // СТАНДАРТНИЙ POST-ЗАПИТ
+    const postData = async (url: string, body: Record<string, any> = {}) => {
+        const currentToken = await ensureAuth(); 
+        const absoluteUrl = getAbsoluteUrl(url);
+
+        const executePost = async (jwt: string) => {
+            const headers = {
+                'Authorization': `Bearer ${jwt}`,
+                'Content-Type': 'application/json'
+            };
+
+            // Передаємо чистий об'єкт body, без обгорток "options"
+            const { data } = await axios.post(absoluteUrl, body, { headers }); 
+            return data;
+        };
+
+        try {
+            return await executePost(currentToken);
+        } catch(error) {
+            const axiosError = error as AxiosError;
+            
+            if (axiosError.response?.status === 401 || axiosError.code === 'ERR_NETWORK') {
+                console.warn("POST: JWT прострочений/недійсний. Спроба автоматичної повторної авторизації...");
+                
+                try {
+                    const newToken = await ensureAuth(); 
+                    const data = await executePost(newToken);
+                    setNotification('Сесію успішно відновлено.', 3000);
+                    return data;
+                } catch (reAuthError) {
+                    console.error('Критична помилка авторизації:', reAuthError);
+                    userStore.logOut();
+                    throw new Error('Сесія закінчилася. Потрібен повторний вхід.');
+                }
+            }
+            
+            console.error('Error posting data:', error);
+            throw error;
+        }
+    }
+
     const getAbsoluteUrl = (url: string): string => {
       // Обробка слешів, щоб уникнути подвійного слеша (//)
       const base = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
@@ -253,35 +294,30 @@ export const api = () => {
             throw error;
         }
     };
-    
-    const getData = async (url: string) => {
-        
-        const currentToken = await ensureAuth(); 
-        const absoluteUrl = getAbsoluteUrl(url); // <-- ВИКОРИСТАННЯ АБСОЛЮТНОГО URL
 
-        // Функція для виконання запиту GET
-        const executeGet = async (jwt: string) => {
-            const headers = {
-                'Authorization': `Bearer ${jwt}`,
-                'Content-Type': 'application/json'
-            };
 
-            // Використовуємо absoluteUrl
-            const { data } = await axios.get(absoluteUrl, { headers }); 
-            return data;
+    const getData = async (url: string, params: Record<string, any> = {}) => {
+    const currentToken = await ensureAuth(); 
+    const absoluteUrl = getAbsoluteUrl(url);
+
+    const executeGet = async (jwt: string) => {
+        const headers = {
+            'Authorization': `Bearer ${jwt}`,
+            'Content-Type': 'application/json'
         };
 
-        try {
-            const data = await executeGet(currentToken);
-            
-            if (data.locale?.error) {
-                 console.error('Error fetching data:', data.locale.message);
-                 setNotification(data.locale.message);
-            }
-            return data;
-            
-        } catch(error) {
-            const axiosError = error as AxiosError;
+        // Передаємо params через axios
+        const { data } = await axios.get(absoluteUrl, { 
+            headers, 
+            params // axios автоматично зробить ?page=1&size=100
+        }); 
+        return data;
+    };
+
+    try {
+        return await executeGet(currentToken);
+    } catch(error) {
+         const axiosError = error as AxiosError;
             
             if (axiosError.response?.status === 401 || axiosError.code === 'ERR_NETWORK') {
                 
@@ -302,10 +338,11 @@ export const api = () => {
             
             console.error('Error fetching data:', error);
             throw error;
-        }
     }
+}
 
     return {
+        postData,
         getData,
         fetchData,
         deleteData,

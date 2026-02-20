@@ -1,7 +1,7 @@
 # CREATE VECTOR INDEX page_text_index IF NOT EXISTS
 # FOR (p:Page)
 # ON (p.text_embedding)
-# OPTIONS {indexConfig: {
+#  OPTIONS {indexConfig: {
 #  `vector.dimensions`: 384,
 #  `vector.similarity_function`: 'cosine'
 # }}
@@ -25,7 +25,7 @@ class TextRecommendationBuilderService:
         Повертає top-n рекомендацій за текстовою схожістю до останнього інтересу юзера.
         """
         
-        target_emb = self._fetch_latest_interaction_embedding(user_id)
+        target_emb = self._fetch_user_text_profile(user_id)
         
         if not target_emb:
             log.info(f"User {user_id} has no valid recent history. Falling back to trending.")
@@ -33,19 +33,11 @@ class TextRecommendationBuilderService:
 
         return self._vector_search(user_id, target_emb, n)
 
-    def _fetch_latest_interaction_embedding(self, user_id: str) -> Optional[List[float]]:
-        """
-        Знаходить останню відвідану сторінку, яка має text_embedding,
-        щоб на її основі шукати схожий контент.
-        """
+    def _fetch_user_text_profile(self, user_id: str) -> Optional[List[float]]:
+        """Отримує накопичений (усереднений EMA) текстовий профіль користувача."""
         query = """
-        MATCH (u:User {id: $user_id})-[v:VISIT]->(p:Page)
-        WHERE p.text_embedding IS NOT NULL
-          AND v.visitedAt IS NOT NULL
-        RETURN p.text_embedding AS emb
-        // Сортуємо за часом останнього візиту, щоб взяти найсвіжіший інтерес
-        ORDER BY datetime(v.visitedAt[-1]) DESC
-        LIMIT 1
+        MATCH (u:User {id: $user_id})
+        RETURN u.text_embedding AS emb
         """
         res = self.client.run_one(query, {"user_id": user_id})
         return res.get("emb") if res else None

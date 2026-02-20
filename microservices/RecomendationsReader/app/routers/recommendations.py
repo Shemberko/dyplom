@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Query, Depends, HTTPException
 from typing import List, Dict, Any, Optional
 from app.services.recomendation_builder_service import RecommendationService
 from app.dependencies.auth import get_current_user_id
+from pydantic import BaseModel
+from fastapi import BackgroundTasks
 
 router = APIRouter()
 rec_service = RecommendationService()
@@ -40,4 +42,38 @@ async def get_recommendations(
             "total_found": len(recommendations),
             "has_next": end_index < len(recommendations)
         }
+    }
+
+class VisitRequest(BaseModel):
+    user_id: str
+    page_id: str
+    source: str = "recommendation"
+
+@router.post("/visit")
+async def track_visit(
+    visit: VisitRequest,
+    background_tasks: BackgroundTasks,
+    current_user_id: str = Depends(get_current_user_id)
+) -> Dict[str, str]:
+    """
+    Записати подію відвідування сторінки користувачем.
+    Виконується асинхронно (у фоні), щоб не блокувати клієнта.
+    """
+    
+    # Перевірка безпеки: переконуємось, що користувач записує візит для себе,
+    # або просто ігноруємо user_id з фронтенду і беремо надійний з JWT-токена.
+    actual_user_id = current_user_id or visit.user_id
+
+    # Додаємо задачу у фоновий пул FastAPI
+    background_tasks.add_task(
+        rec_service.track_user_visit,
+        user_id=actual_user_id,
+        page_id=visit.page_id,
+        source=visit.source
+    )
+
+    # Миттєво відповідаємо фронтенду, що запит прийнято
+    return {
+        "status": "success", 
+        "message": "Visit tracking queued"
     }

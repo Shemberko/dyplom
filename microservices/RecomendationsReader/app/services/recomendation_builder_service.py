@@ -106,3 +106,42 @@ class RecommendationService:
                 "score": 0.0
             } for r in results
         ]
+    
+    def track_user_visit(self, user_id: str, page_id: str, source: str = "recommendation") -> bool:
+        """
+        Записує або оновлює зв'язок VISIT між користувачем та сторінкою.
+        Використовується для зворотного зв'язку (Feedback Loop) для GraphSAGE.
+        """
+        # Використовуємо elementId для пошуку сторінки, бо саме його ми віддавали на фронтенд
+        query = """
+        MATCH (u:User {id: $user_id})
+        MATCH (p:Page) WHERE elementId(p) = $page_id
+        
+        // MERGE створить зв'язок, якщо його немає, або просто оновить існуючий
+        MERGE (u)-[v:VISIT]->(p)
+        
+        // Додаємо поточний час до масиву відвідувань і оновлюємо джерело
+        SET v.visitedAt = coalesce(v.visitedAt, []) + datetime(),
+            v.source = $source,
+            v.last_visited = datetime(),
+            v.active_time = coalesce(v.active_time, 0.5) // Базовий час для вашого алгоритму ваг
+            
+        RETURN elementId(v) as visit_id
+        """
+        try:
+            res = self.client.run_query(query, {
+                "user_id": user_id,
+                "page_id": page_id,
+                "source": source
+            })
+            
+            if res:
+                log.info(f"Visit tracked: User {user_id} -> Page {page_id} (Source: {source})")
+                return True
+            else:
+                log.warning(f"Could not track visit. User {user_id} or Page {page_id} not found.")
+                return False
+                
+        except Exception as e:
+            log.error(f"Failed to track visit for user {user_id}: {e}")
+            return False

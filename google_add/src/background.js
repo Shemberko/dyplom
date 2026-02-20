@@ -40,13 +40,11 @@ function sendLogToServer() {
         chrome.identity.getProfileUserInfo((userInfo) => {
             if (!userInfo.id) return;
 
-            // Мапа метаданих (URL, Title), які зібрав page_analyzer.js
             const metaMap = new Map((res.activityParsedData || []).map(e => [String(e.info.tabId), e]));
             
             const now = Date.now();
             const logPayload = [];
             
-            // Формуємо фінальний лог, об'єднуючи Metrics (час) + Meta (контент)
             for (const [tId, metrics] of Object.entries(tabMetrics)) {
                 if (metaMap.has(tId)) {
                     const meta = metaMap.get(tId);
@@ -118,11 +116,28 @@ function sendLogToServer() {
 }
 
 
+const IGNORED_DOMAINS_KEY = 'ignored_domains';
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    chrome.storage.local.get([STORAGE_KEY], (res) => {
+    chrome.storage.local.get([STORAGE_KEY, IGNORED_DOMAINS_KEY], (res) => {
         if (res[STORAGE_KEY] === false) return;
 
+        const ignoredDomains = res[IGNORED_DOMAINS_KEY] || [];
+
         if (changeInfo.status === "complete" && tab.url && !tab.url.startsWith("chrome://")) {
+            
+            try {
+                const url = new URL(tab.url);
+                const hostname = url.hostname.replace('www.', ''); 
+                
+                if (ignoredDomains.some(domain => hostname.includes(domain))) {
+                    console.log(`Домен ${hostname} в списку ігнорування. Пропускаємо.`);
+                    return;
+                }
+            } catch (e) {
+                console.error("Invalid URL:", tab.url);
+            }
+
             initTab(tabId);
             
             if (tab.active) {
@@ -135,7 +150,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 files: ["services/page_analyzer.js"]
             }).then(() => {
                 chrome.tabs.sendMessage(tabId, { tabId: tabId }).catch(() => {});
-            }).catch(e => console.log("Injection failed (likely restricted url):", e));
+            }).catch(e => console.log("Injection failed:", e));
         }
     });
 });
