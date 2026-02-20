@@ -2,14 +2,10 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{vue,js,ts,jsx,tsx}",
+    "./src/**/*.{vue,js,ts,jsx,tsx}", // Цей рядок покриває всі підпапки в src
   ],
   theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-      }
-    },
+    extend: {},
   },
   plugins: [],
 }

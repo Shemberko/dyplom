@@ -58,7 +58,8 @@ class RecordProcessorService:
             if not should_keep:
                 return
 
-            ai_data = self.categorization.categorize(text_content)
+            existing_categories = self.history.get_categories()
+            ai_data = self.categorization.categorize(text_content, existing_categories)
             categories_list = ai_data.get("categories", ["General"])
             
             categories_payload = []

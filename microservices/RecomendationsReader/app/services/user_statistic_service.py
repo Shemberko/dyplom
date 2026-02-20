@@ -14,7 +14,6 @@ class UserStatisticService:
         Збирає повний пакет даних для фронтенд-дашборду.
         """
         try:
-            # Виправлено f-стрінгу для виводу в консоль
             print(f"Statistic for user: {user_id}")
 
             return {
@@ -29,7 +28,6 @@ class UserStatisticService:
 
     def _get_general_summary(self, user_id: str) -> Dict[str, Any]:
         """Загальні цифри: скільки всього сторінок відвідано, унікальних сайтів тощо."""
-        # Замість APOC використовуємо OPTIONAL MATCH та count(DISTINCT)
         query = """
         MATCH (u:User {id: $user_id})
         OPTIONAL MATCH (u)-[v:VISIT]->(p:Page)

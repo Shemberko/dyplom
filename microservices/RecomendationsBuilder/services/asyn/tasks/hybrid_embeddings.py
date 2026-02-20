@@ -43,29 +43,61 @@ def _project_graph(client: Any):
 
 def _train_graphsage(client: Any):
     """
-    ПОВНЕ ПЕРЕНАВЧАННЯ.
-    Вчить модель розуміти нові зв'язки (наприклад, що 'Python' тепер часто пов'язаний з 'AI').
+    ПОВНЕ ПЕРЕНАВЧАННЯ з адаптивними гіперпараметрами.
     """
-    print("GDS: Повне перенавчання моделі (Training)...")
+    print("GDS: Аналіз розміру графа для вибору параметрів...")
     
-    try: client.run_query(f"CALL gds.beta.model.drop('{MODEL_NAME}', false)")
-    except: pass
+    # 1. Отримуємо статистику спроєктованого графа
+    stats_query = f"CALL gds.graph.list('{GRAPH_NAME}') YIELD nodeCount, relationshipCount RETURN nodeCount, relationshipCount"
+    res = client.run_query(stats_query)
+    
+    node_count = res[0]['nodeCount'] if res else 0
+    rel_count = res[0]['relationshipCount'] if res else 0
+    print(f"GDS: Розмір графа: {node_count} вузлів, {rel_count} зв'язків.")
 
+    # 2. Динамічна логіка (Евристика)
+    if node_count < 1000:
+        # Мікро-граф (Холодний старт) - уникаємо перезгладжування
+        epochs = 3
+        sample_sizes = "[5, 2]"
+        aggregator = "pool"  # pool краще зберігає унікальність на малих даних
+    elif node_count < 5000:
+        # Середній граф
+        epochs = 10
+        sample_sizes = "[10, 5]"
+        aggregator = "mean"
+    else:
+        # Великий граф (Продакшн)
+        epochs = 20
+        sample_sizes = "[15, 10]"
+        aggregator = "mean"
+
+    print(f"GDS: Обрано параметри -> epochs: {epochs}, sampleSizes: {sample_sizes}, aggregator: {aggregator}")
+
+    try: 
+        client.run_query(f"CALL gds.beta.model.drop('{MODEL_NAME}', false)")
+    except: 
+        pass
+
+    # 3. Підставляємо динамічні змінні у запит
     TRAIN_QUERY = f"""
     CALL gds.beta.graphSage.train('{GRAPH_NAME}', {{
         modelName: '{MODEL_NAME}',
         featureProperties: ['features'],
         relationshipWeightProperty: 'weight',
+        negativeSampleWeight: 75,
         embeddingDimension: {HYBRID_DIM},
-        aggregator: 'pool',       
+        aggregator: '{aggregator}',       
         activationFunction: 'relu',
-        sampleSizes: [25, 10],
-        epochs: 20,              
+        sampleSizes: {sample_sizes},
+        epochs: {epochs},              
         learningRate: 0.001
     }})
     """
+    print("GDS: Почнемо тренування моделі...")
     client.run_query(TRAIN_QUERY)
     print("GDS: Модель успішно навчена.")
+
 
 def _apply_graphsage(client: Any) -> int:
     """

@@ -56,6 +56,26 @@ class HistoryService(BaseService):
     def create_or_update_category(self, name: str, vector: Any) -> Dict[str, Any]:
         """Допоміжний метод для створення вузла категорії"""
         return super().create_or_update_node("Category", "name", {"name": name, "text_embedding": vector})
+    
+    def get_categories(self) -> List[str]:
+        """
+        Отримує список всіх унікальних назв категорій, які вже існують у базі даних.
+        """
+        query = "MATCH (c:Category) RETURN c.name AS name"
+        
+        try:
+            # Використовуємо метод run_query з вашого BaseService
+            results = super().run_query(query)
+            
+            # Перетворюємо результати (список словників або Neo4j records) на звичайний список рядків
+            if results:
+                # Використовуємо .get("name") або dict/record доступ, залежно від того, що повертає ваш BaseService
+                return [dict(record).get("name") for record in results if dict(record).get("name")]
+            return []
+            
+        except Exception as e:
+            print(f"Помилка отримання категорій з Neo4j: {e}")
+            return []
 
     def page_exists(self, url: str) -> bool:
         node = super().get_node("Page", "url", url)
