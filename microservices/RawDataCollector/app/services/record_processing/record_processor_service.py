@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import List, Optional, Any, Dict
+import numpy as np
 
 # Імпорти ваших сервісів
 from ..neo4j.history_service import HistoryService
@@ -61,6 +62,7 @@ class RecordProcessorService:
             existing_categories = self.history.get_categories()
             ai_data = self.categorization.categorize(text_content, existing_categories)
             categories_list = ai_data.get("categories", ["General"])
+            ai_summary = ai_data.get("summary", "")
             
             categories_payload = []
             for cat_name in categories_list:
@@ -70,7 +72,14 @@ class RecordProcessorService:
                     "embedding": cat_vector
                 })
         
-            page_vector = self.embeddings(text_content)
+            text_for_embedding = ai_summary if len(ai_summary.strip()) > 10 else text_content
+            page_vector = self.embeddings(text_for_embedding)
+            
+            if page_vector:
+                v = np.array(page_vector)
+                norm = np.linalg.norm(v)
+                if norm > 0:
+                    page_vector = (v / norm).tolist()
             
             final_image = entry.get("image_url")
             if not final_image:
@@ -81,7 +90,7 @@ class RecordProcessorService:
                 "meta_description": entry.get("meta_description"),
                 "text_sample": text_content, 
                 "image": final_image,
-                "ai_summary": ai_data.get("summary"),
+                "ai_summary": ai_summary,
                 "is_unsafe": ai_data.get("is_unsafe", False)
             }
             if page_vector:

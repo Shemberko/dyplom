@@ -1,7 +1,9 @@
+import numpy as np
 import traceback
 from typing import List, Any, Dict, Tuple
 from services.asyn.celery_worker import app
 from services.neo4j.query_runner import query_runner as neo4j_client
+
 
 HYBRID_DIM = 128
 EMBEDDING_SIZE = 384
@@ -189,9 +191,13 @@ def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_
 
         DECAY = 0.98
         
-        new_sum = [ (s_o * DECAY) + s_b for s_o, s_b in zip(old_sum, batch_sum)]
+        new_sum = [(s_o * DECAY) + s_b for s_o, s_b in zip(old_sum, batch_sum)]
         new_w = (old_w * DECAY) + batch_w
-        new_emb = [x / new_w for x in new_sum] if new_w > 0 else new_sum
+
+        v = np.array(new_sum)
+        norm = np.linalg.norm(v)
+
+        new_emb = (v / norm).tolist() if norm > 0 else [0.0] * dim
 
         WRITE_Q = """
         MATCH (u:User {id: $user_id})
@@ -208,6 +214,12 @@ def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_
         raise e
 
 def validate_vector(vec): return [float(x) for x in vec] if vec else None
+
+def normalize_vector(vec):
+    norm = np.linalg.norm(vec)
+    if norm == 0: 
+        return vec
+    return (vec / norm).tolist()
 
 def aggregate_hybrid_visits(records):
     embeddings = []; weights = []
