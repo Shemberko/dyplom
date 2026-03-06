@@ -37,6 +37,16 @@ const userStore = useUserStore();
           <Lightbulb class="w-4 h-4" />
           <span class="hidden md:block">Рекомендації</span>
         </router-link>
+
+        <router-link 
+          v-if="userStore.isAuthenticated" 
+          to="/statistic" 
+          class="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+          active-class="bg-blue-50 !text-blue-600"
+        >
+          <Lightbulb class="w-4 h-4" />
+          <span class="hidden md:block">Статистика</span>
+        </router-link>
       </nav>
 
       <div v-if="userStore.isAuthenticated" class="flex items-center gap-3 ml-2 border-l pl-4 border-gray-100">

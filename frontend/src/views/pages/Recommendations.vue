@@ -63,8 +63,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen">
-    <div v-if="visibleItems.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div class="min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <div v-if="visibleItems.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <RecommendationCard 
             v-for="item in visibleItems" 
             :key="item.id" 
@@ -77,7 +78,7 @@ onMounted(async () => {
         Рекомендацій поки немає
     </div>
 
-    <div id="load-more-sentinel" class="h-20 flex flex-col items-center justify-center mt-10">
+    <div id="load-more-sentinel" class="h-32 flex flex-col items-center justify-center mt-10">
         <Loader2 v-if="isLoading" class="h-8 w-8 animate-spin text-indigo-600" />
         <div v-if="!hasMoreOnServer && visibleItems.length > 0 && visibleCount >= displayRecommendations.length" class="text-sm text-gray-400 italic">
           Ви переглянули всі матеріали
