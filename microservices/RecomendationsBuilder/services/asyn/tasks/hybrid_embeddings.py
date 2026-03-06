@@ -28,17 +28,17 @@ def _project_graph(client: Any):
             'MATCH (n) WHERE n:User OR n:Page OR n:Category OR n:Keyword
              RETURN id(n) AS id, labels(n) AS labels, 
                     coalesce(n.text_embedding, [i IN range(1, {EMBEDDING_SIZE}) | 0.0]) AS features',
-            'MATCH (s)-[r]->(t) 
+            'MATCH (s)-[r]-(t) 
              WHERE type(r) IN ["VISIT", "IN_CATEGORY"]
              RETURN id(s) AS source, id(t) AS target, 
                     CASE type(r)
-                        WHEN "VISIT" THEN coalesce(r.active_time, 1.0)
+                        WHEN "VISIT" THEN log10(coalesce(r.active_time, 1.0) + 9.0)
                         ELSE 1.0
                     END AS weight',
             {{validateRelationships: false}} 
         )
     """
-    print(f"GDS: Проєктування графа '{GRAPH_NAME}'...")
+    print(f"GDS: Проєктування графа '{GRAPH_NAME}' (Undirected через Cypher)...")
     client.run_query(PROJECTION_QUERY)
 
 def _train_graphsage(client: Any):
@@ -65,7 +65,7 @@ def _train_graphsage(client: Any):
         # Середній граф
         epochs = 10
         sample_sizes = "[10, 5]"
-        aggregator = "mean"
+        aggregator = "pool"
     else:
         # Великий граф (Продакшн)
         epochs = 20
@@ -85,7 +85,7 @@ def _train_graphsage(client: Any):
         modelName: '{MODEL_NAME}',
         featureProperties: ['features'],
         relationshipWeightProperty: 'weight',
-        negativeSampleWeight: 75,
+        negativeSampleWeight: 45,
         embeddingDimension: {HYBRID_DIM},
         aggregator: '{aggregator}',       
         activationFunction: 'relu',
