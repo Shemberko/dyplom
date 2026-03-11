@@ -30,7 +30,6 @@ const fetchStats = async () => {
     }
 };
 
-// Підготовка даних для графіка активності (Bar Chart)
 const activityChartData = computed(() => ({
     labels: stats.value?.activity_chart.map((d: any) => d.date) || [],
     datasets: [{
@@ -41,7 +40,6 @@ const activityChartData = computed(() => ({
     }]
 }));
 
-// Підготовка даних для топа категорій (Pie Chart)
 const categoriesChartData = computed(() => ({
     labels: stats.value?.top_categories.map((c: any) => c.name) || [],
     datasets: [{

@@ -5,6 +5,7 @@ from services.asyn.celery_worker import app
 from services.neo4j.query_runner import query_runner as neo4j_client
 
 
+HOURS_AGO = 1
 HYBRID_DIM = 128
 EMBEDDING_SIZE = 384
 MODEL_NAME = "production_graphsage_model"
@@ -27,7 +28,7 @@ def _project_graph(client: Any):
     PROJECTION_QUERY = f"""
         CALL gds.graph.project.cypher(
             '{GRAPH_NAME}',
-            'MATCH (n) WHERE n:User OR n:Page OR n:Category OR n:Keyword
+            'MATCH (n) WHERE n:User OR n:Page OR n:Category
              RETURN id(n) AS id, labels(n) AS labels, 
                     coalesce(n.text_embedding, [i IN range(1, {EMBEDDING_SIZE}) | 0.0]) AS features',
             'MATCH (s)-[r]-(t) 
@@ -62,17 +63,16 @@ def _train_graphsage(client: Any):
         # Мікро-граф (Холодний старт) - уникаємо перезгладжування
         epochs = 3
         sample_sizes = "[5, 2]"
-        aggregator = "pool"  # pool краще зберігає унікальність на малих даних
+        aggregator = "pool"
     elif node_count < 5000:
         # Середній граф
         epochs = 10
         sample_sizes = "[10, 5]"
         aggregator = "pool"
     else:
-        # Великий граф (Продакшн)
         epochs = 20
         sample_sizes = "[15, 10]"
-        aggregator = "mean"
+        aggregator = "pool"
 
     print(f"GDS: Обрано параметри -> epochs: {epochs}, sampleSizes: {sample_sizes}, aggregator: {aggregator}")
 
@@ -81,7 +81,6 @@ def _train_graphsage(client: Any):
     except: 
         pass
 
-    # 3. Підставляємо динамічні змінні у запит
     TRAIN_QUERY = f"""
     CALL gds.beta.graphSage.train('{GRAPH_NAME}', {{
         modelName: '{MODEL_NAME}',
@@ -146,8 +145,19 @@ def run_graphsage_pipeline(client: Any, force_retrain: bool = False) -> str:
         traceback.print_exc()
         raise e
 
-# Що краще агрегувати, текстові ембединги чи гібридні ?
-def update_user_hybrid_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ago: int = 24) -> str:
+
+# FUTURE OPTIMIZATION POSSIBILITIES
+# # Замість MATCH (u:User) RETURN u.id ...
+# # Беремо ТІЛЬКИ тих, хто щось читав за час від останнього оновлення
+# query = """
+# MATCH (u:User)-[v:VISIT]->(p:Page)
+# WHERE datetime(v.visitedAt[-1]) >= datetime() - duration('PT24H')
+# RETURN DISTINCT u.id AS id
+# """
+# active_users = neo4j_client.run_query(query)
+# for u in active_users:
+#     update_user_text_profile_batch(neo4j_client, u['id'])
+def update_user_text_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ago: int = HOURS_AGO) -> str:
     """
     Оновлює профіль користувача.
     
@@ -249,11 +259,11 @@ def task_build_graph_and_update_user(self, user_id: str = None, force_retrain: b
         print(f">> GraphSAGE: {sage_msg}")
         
         if user_id:
-            update_user_hybrid_profile_batch(neo4j_client, user_id)
+            update_user_text_profile_batch(neo4j_client, user_id)
         else:
             users = neo4j_client.run_query("MATCH (u:User) RETURN u.id as id")
             for u in users:
-                update_user_hybrid_profile_batch(neo4j_client, u['id'])
+                update_user_text_profile_batch(neo4j_client, u['id'])
         
         return "Pipeline Done"
     except Exception as exc:

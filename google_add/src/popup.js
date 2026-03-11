@@ -3,7 +3,6 @@ const INPUT_ID = 'domain-input';
 const ADD_BTN_ID = 'add-btn';
 const STORAGE_KEY = 'ignored_domains';
 
-// Завантаження списку при відкритті
 document.addEventListener('DOMContentLoaded', () => {
     renderList();
 

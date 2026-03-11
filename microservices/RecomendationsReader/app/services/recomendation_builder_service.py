@@ -112,7 +112,7 @@ class RecommendationService:
         Записує або оновлює зв'язок VISIT між користувачем та сторінкою.
         Використовується для зворотного зв'язку (Feedback Loop) для GraphSAGE.
         """
-        # Використовуємо elementId для пошуку сторінки, бо саме його ми віддавали на фронтенд
+
         query = """
         MATCH (u:User {id: $user_id})
         MATCH (p:Page) WHERE elementId(p) = $page_id

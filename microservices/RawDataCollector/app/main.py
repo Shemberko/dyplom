@@ -53,7 +53,6 @@ async def main():
     amqp_url = os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/")
     broker = RabbitMQBroker(amqp_url=amqp_url, queue_name="raw_data_queue")
 
-    # Логіка реконнекту до RabbitMQ
     max_retries = int(os.getenv("RABBITMQ_CONNECT_RETRIES", "10"))
     delay = 5
     for attempt in range(1, max_retries + 1):

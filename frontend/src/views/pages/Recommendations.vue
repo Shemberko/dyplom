@@ -7,14 +7,11 @@ import RecommendationCard from '../components/RecommendationCard.vue';
 
 const store = useRecommendationStore();
 
-// Витягуємо реактивні змінні зі стора (важливо використовувати storeToRefs для стейту)
 const { isLoading, hasMoreOnServer, displayRecommendations } = storeToRefs(store);
 
-// СТАН ПАГІНАЦІЇ НА КЛІЄНТІ
 const LOCAL_STEP = 10;
-const visibleCount = ref(LOCAL_STEP); // Скільки карток показуємо зараз
+const visibleCount = ref(LOCAL_STEP);
 
-// Обчислюємо масив для рендеру: беремо "чисті" рекомендації і відрізаємо потрібну кількість
 const visibleItems = computed(() => {
     return displayRecommendations.value.slice(0, visibleCount.value);
 });
@@ -22,12 +19,10 @@ const visibleItems = computed(() => {
 const loadMoreLocal = async () => {
     const totalAvailable = displayRecommendations.value.length;
 
-    // Якщо є що показувати з локального кешу
     if (visibleCount.value < totalAvailable) {
         visibleCount.value += LOCAL_STEP;
     }
 
-    // Якщо в кеші залишилось мало (менше 20) — просимо стор підвантажити ще з сервера
     const remainingInCache = totalAvailable - visibleCount.value;
     if (remainingInCache < 20 && hasMoreOnServer.value && !isLoading.value) {
         await store.fetchNextBatch();
@@ -51,12 +46,10 @@ const setupIntersectionObserver = () => {
 };
 
 onMounted(async () => {
-    // 1. Спочатку чекаємо дані від сервера (якщо їх ще немає в сторі)
     if (displayRecommendations.value.length === 0) {
         await store.fetchNextBatch();
     }
     
-    // 2. Тільки після рендеру перших карток запускаємо обсервер
     await nextTick();
     setupIntersectionObserver();
 });

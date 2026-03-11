@@ -14,23 +14,14 @@ const requestSsoTokenFromExtension = (): Promise<string> => {
     
     return new Promise((resolve, reject) => {
         
-        const responseListener = (event: MessageEvent) => {
-
-            // Завжди видаляємо слухача після отримання коректної відповіді (успіх чи помилка)
-            // Примітка: Видалення має відбуватися тільки після обробки кінцевого результату,
-            // а не після ігнорування самовиклику.
-            
+        const responseListener = (event: MessageEvent) => {            
             console.log('Отримано повідомлення від розширення:', event);
 
-            // Перевірка безпеки та типу повідомлення
             if (event.origin !== FRONTEND_APP_ORIGIN || !event.data || event.data.action !== "SSO_RESPONSE_TO_FRONTEND") {
                 return;
             }
-
-            // Якщо ми дійшли сюди, це справжня відповідь. Видаляємо слухача.
             window.removeEventListener('message', responseListener);
 
-            // Обробка даних: токен або помилка
             if (event.data.oneTimeToken) {
                 resolve(event.data.oneTimeToken);
             } else {
@@ -38,7 +29,6 @@ const requestSsoTokenFromExtension = (): Promise<string> => {
             }
         };
 
-        // 2. Додаємо слухача (ПЕРШИМ КРОКОМ)
         window.addEventListener('message', responseListener);
 
         try {
@@ -57,15 +47,12 @@ export const api = () => {
     const { token, isAuthenticated } = storeToRefs(userStore);
     const { setNotification } = useNotificationStore();
 
-    /**
-     * Крок 3: Виконує захищений запит на бекенд для отримання User Profile.
-     */
     const fetchUserProfile = async (jwtToken: string) => {
         try {
             const response = await axios.get(`${BACKEND_URL}/profile`, {
                 headers: { 'Authorization': `Bearer ${jwtToken}` }
             });
-            return response.data; // { id: "...", email: "..." }
+            return response.data;
         } catch (e) {
             console.error('Помилка отримання профілю:', e);
             throw new Error("Не вдалося завантажити профіль користувача.");
@@ -78,16 +65,12 @@ export const api = () => {
      */
     const exchangeTokenAndSetAuth = async (oneTimeToken: string): Promise<string> => {
         try {
-            // ЕТАП 2а: Обмін One-Time Token на JWT
             const exchangeResponse = await axios.post(`${BACKEND_URL}/sso/exchange-token`, { token: oneTimeToken });
             const jwtToken = exchangeResponse.data.jwt;
             
             if (!jwtToken) throw new Error("API не повернув JWT.");
             
-            // ЕТАП 2б: ЗАХИЩЕНИЙ ЗАПИТ: Отримання інформації профілю
             const profileData = await fetchUserProfile(jwtToken);
-
-            // Оновлення Store (без декодування)
             userStore.setAuthData(jwtToken, profileData.id, profileData.email);
             
             return jwtToken;
@@ -99,20 +82,16 @@ export const api = () => {
         }
     }
 
-    // *** ensureAuth ТЕПЕР ПОТРЕБУЄ ДОДАТКОВОЇ ЛОГІКИ ***
     const ensureAuth = async (): Promise<string> => {
         
 
         if (token.value && (!userStore.user.id || !userStore.user.email)) {
              try {
-                // Відновлення даних профілю
                 const profileData = await fetchUserProfile(token.value);
                 userStore.setAuthData(token.value, profileData.id, profileData.email);
                 return token.value;
              } catch (e) {
-                 // Токен прострочений або недійсний. Продовжуємо спробу SSO.
                  userStore.logOut();
-                 // Падаємо нижче в логіку SSO
              }
         }
         
@@ -121,15 +100,10 @@ export const api = () => {
         }
 
         try {
-            // КРОК 1: SSO (отримання One-Time Token)
             console.log('Ініціалізація SSO через розширення браузера...');
             const oneTimeToken = await requestSsoTokenFromExtension(); 
-
             console.log('Отримано One-Time Token від розширення SSO.', oneTimeToken);
-            
-            // КРОК 2: Обмін JWT + Запит профілю
             const newJwt = await exchangeTokenAndSetAuth(oneTimeToken);
-
             return newJwt;
 
         } catch (error) {
@@ -138,17 +112,17 @@ export const api = () => {
             throw new Error('Потрібна авторизація.');
         }
     };
+
    // -------------------------------------------------------------------------
-    // ФУНКЦІЯ POST/FETCH (ОНОВЛЕНО)
+    // ФУНКЦІЯ POST/FETCH
     // -------------------------------------------------------------------------
     const fetchData = async (url: string, initData: string, options: object = {}) => {
         
       console.log('fetchData called with URL:', url, 'initData:', initData, 'options:', options);
         const currentToken = await ensureAuth(); 
         console.log('Using JWT Token:', currentToken);
-        const absoluteUrl = getAbsoluteUrl(url); // <-- ВИКОРИСТАННЯ АБСОЛЮТНОГО URL
+        const absoluteUrl = getAbsoluteUrl(url);
 
-        // Функція для виконання запиту POST
         const executeRequest = async (jwt: string) => {
             const headers = {
                 'Authorization': `Bearer ${jwt}`,
@@ -160,7 +134,6 @@ export const api = () => {
                 options: options
             };
 
-            // Використовуємо absoluteUrl
             const { data } = await axios.post(absoluteUrl, payload, { headers }); 
             return data;
         };
@@ -198,7 +171,7 @@ export const api = () => {
         }
     }
 
-    // СТАНДАРТНИЙ POST-ЗАПИТ
+    // POST-ЗАПИТ
     const postData = async (url: string, body: Record<string, any> = {}) => {
         const currentToken = await ensureAuth(); 
         const absoluteUrl = getAbsoluteUrl(url);
@@ -209,7 +182,6 @@ export const api = () => {
                 'Content-Type': 'application/json'
             };
 
-            // Передаємо чистий об'єкт body, без обгорток "options"
             const { data } = await axios.post(absoluteUrl, body, { headers }); 
             return data;
         };
@@ -240,7 +212,6 @@ export const api = () => {
     }
 
     const getAbsoluteUrl = (url: string): string => {
-      // Обробка слешів, щоб уникнути подвійного слеша (//)
       const base = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
       const path = url.startsWith('/') ? url : `/${url}`;
       return `${base}${path}`;
@@ -250,12 +221,9 @@ export const api = () => {
     const deleteData = async (url: string, id: number) => {
         
         const currentToken = await ensureAuth(); 
-        const absoluteUrl = getAbsoluteUrl(url); // <-- ВИКОРИСТАННЯ АБСОЛЮТНОГО URL
-
-        // Функція для виконання запиту DELETE
+        const absoluteUrl = getAbsoluteUrl(url);
         const executeDelete = async (jwt: string) => {
             const headers = { 'Authorization': `Bearer ${jwt}` };
-            // Використовуємо absoluteUrl
             const { data } = await axios.delete(`${absoluteUrl}/${id}`, { headers }); 
             return data;
         };
@@ -306,10 +274,9 @@ export const api = () => {
             'Content-Type': 'application/json'
         };
 
-        // Передаємо params через axios
         const { data } = await axios.get(absoluteUrl, { 
             headers, 
-            params // axios автоматично зробить ?page=1&size=100
+            params
         }); 
         return data;
     };

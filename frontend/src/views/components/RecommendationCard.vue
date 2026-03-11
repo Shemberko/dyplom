@@ -1,24 +1,43 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-// Імпортуємо інтерфейс з вашого стора
 import type { PageRecommendation } from '@/stores/recommendations';
-import { Image as ImageIcon, ArrowRight } from 'lucide-vue-next'; // іконки
+import { 
+  Image as ImageIcon, 
+  ArrowRight, 
+  FileText,
+  Network,
+  Sparkles,
+  Flame
+} from 'lucide-vue-next'; 
 
 const props = defineProps<{
   rec: PageRecommendation;
 }>();
 
-// Форматуємо score (0.9954 -> 99.5%)
 const formattedScore = computed(() => {
   return (props.rec.score * 100).toFixed(1) + '%';
 });
 
-// Витягуємо домен з URL (наприклад, "uk.wikipedia.org" з "https://uk.wikipedia.org/wiki/...")
 const domain = computed(() => {
   try {
     return new URL(props.rec.url).hostname.replace('www.', '');
   } catch {
     return 'Зовнішній ресурс';
+  }
+});
+
+const typeInfo = computed(() => {
+  switch (props.rec.type) {
+    case 'text':
+      return { label: 'За текстом', color: 'text-blue-600', icon: FileText };
+    case 'hybrid':
+      return { label: 'За графом', color: 'text-purple-600', icon: Network };
+    case 'mixed':
+      return { label: 'Топ збіг', color: 'text-amber-600', icon: Sparkles };
+    case 'trending':
+      return { label: 'Популярне', color: 'text-rose-600', icon: Flame };
+    default:
+      return null;
   }
 });
 </script>
@@ -39,6 +58,16 @@ const domain = computed(() => {
       />
       <div v-else class="w-full h-full flex items-center justify-center text-gray-300">
         <ImageIcon class="w-12 h-12" stroke-width="1.5" />
+      </div>
+
+      <div 
+        v-if="typeInfo" 
+        class="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1.5 border border-white/20"
+      >
+        <component :is="typeInfo.icon" class="w-3.5 h-3.5" :class="typeInfo.color" />
+        <span class="text-[10px] font-bold uppercase tracking-wider" :class="typeInfo.color">
+          {{ typeInfo.label }}
+        </span>
       </div>
 
       <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm flex items-center">

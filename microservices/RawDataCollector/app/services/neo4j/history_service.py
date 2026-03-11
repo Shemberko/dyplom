@@ -64,12 +64,9 @@ class HistoryService(BaseService):
         query = "MATCH (c:Category) RETURN c.name AS name"
         
         try:
-            # Використовуємо метод run_query з вашого BaseService
             results = super().run_query(query)
             
-            # Перетворюємо результати (список словників або Neo4j records) на звичайний список рядків
             if results:
-                # Використовуємо .get("name") або dict/record доступ, залежно від того, що повертає ваш BaseService
                 return [dict(record).get("name") for record in results if dict(record).get("name")]
             return []
             

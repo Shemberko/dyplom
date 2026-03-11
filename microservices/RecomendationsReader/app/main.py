@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import recommendations, authorization, profile, text_recommendations, statistic
+from app.routers import recommendations, authorization, profile, text_recommendations, statistic, unified_recommendations
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,7 +8,6 @@ app = FastAPI()
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    #продакшн домен
 ]
 
 app.add_middleware(
@@ -19,8 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
+app.include_router(recommendations.router, prefix="/text_recommendations", tags=["recommendations"])
 app.include_router(text_recommendations.router, prefix="/content_recomendations", tags=["recommendations"])
 app.include_router(authorization.router, prefix="/sso", tags=["authorization"])
 app.include_router(profile.router, prefix="/profile", tags=["profile"])
 app.include_router(statistic.router, prefix="/statistic", tags=["statistic"])
+app.include_router(unified_recommendations.router, prefix="/recommendations", tags=["statistic"])
