@@ -59,12 +59,9 @@ async def track_visit(
     Записати подію відвідування сторінки користувачем.
     Виконується асинхронно (у фоні), щоб не блокувати клієнта.
     """
-    
-    # Перевірка безпеки: переконуємось, що користувач записує візит для себе,
-    # або просто ігноруємо user_id з фронтенду і беремо надійний з JWT-токена.
+
     actual_user_id = current_user_id or visit.user_id
 
-    # Додаємо задачу у фоновий пул FastAPI
     background_tasks.add_task(
         rec_service.track_user_visit,
         user_id=actual_user_id,
@@ -72,7 +69,6 @@ async def track_visit(
         source=visit.source
     )
 
-    # Миттєво відповідаємо фронтенду, що запит прийнято
     return {
         "status": "success", 
         "message": "Visit tracking queued"

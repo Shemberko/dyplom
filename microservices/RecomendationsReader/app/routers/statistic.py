@@ -20,8 +20,6 @@ async def get_user_dashboard(
     stats = stats_service.get_user_dashboard_data(user_id)
     
     if not stats:
-        # Якщо даних немає (новий юзер), повертаємо пусту структуру замість 404,
-        # щоб фронтенд міг відмалювати пусті графіки
         return {
             "summary": {"total_visits": 0, "unique_pages": 0, "total_categories": 0},
             "top_categories": [],

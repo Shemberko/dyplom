@@ -75,7 +75,6 @@ try:
             new_summary = generate_summary(text)
             
             if new_summary:
-                # Робимо вектор з нового висновку
                 vec = emb_service(new_summary)
                 normalized_vec = None
                 
@@ -85,7 +84,6 @@ try:
                     if norm > 0:
                         normalized_vec = (v / norm).tolist()
                 
-                # Оновлюємо БД
                 update_q = """
                 MATCH (page:Page {url: $url}) 
                 SET page.ai_summary = $summary,

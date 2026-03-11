@@ -1,5 +1,3 @@
-// stores/user.ts
-
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { User } from '@/types/user';
@@ -29,7 +27,7 @@ export const useUserStore = defineStore('user', () => {
 
     function initializeAuth() {
         const storedToken = localStorage.getItem('jwt_token');
-        
+
         if (storedToken) {
             token.value = storedToken;
             isAuthenticated.value = true;

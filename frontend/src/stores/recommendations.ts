@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { api } from '@/composables/api';
 
-// Інтерфейс (як ми обговорювали раніше)
 export interface PageRecommendation {
   id: string;
   url: string;
@@ -10,6 +9,7 @@ export interface PageRecommendation {
   image: string | null;
   score: number;
   description?: string;
+  type: string;
 }
 
 export const useRecommendationStore = defineStore('recommendations', () => {
@@ -18,7 +18,6 @@ export const useRecommendationStore = defineStore('recommendations', () => {
   const rawRecommendations = ref<PageRecommendation[]>([]);
   const visitedIds = ref<Set<string>>(new Set());
   
-  // Стан пагінації сервера
   const serverPage = ref(1);
   const SERVER_SIZE = 100;
   const isLoading = ref(false);
@@ -44,7 +43,6 @@ export const useRecommendationStore = defineStore('recommendations', () => {
       const newItems: PageRecommendation[] = response?.data || [];
       
       if (newItems.length > 0) {
-        // Додаємо нові елементи до існуючих
         rawRecommendations.value.push(...newItems);
         
         hasMoreOnServer.value = response?.meta?.has_next ?? (newItems.length === SERVER_SIZE);
@@ -60,14 +58,9 @@ export const useRecommendationStore = defineStore('recommendations', () => {
     }
   }
 
-  // Клік по рекомендації
   async function visitRecommendation(pageId: string, userId: string) {
-    // Оптимістичне приховування
     visitedIds.value.add(pageId);
-    
-    // Або повне видалення з пам'яті (радію, що ви обрали цей варіант!):
     rawRecommendations.value = rawRecommendations.value.filter(p => p.id !== pageId);
-
     try {
       await postData('/recommendations/visit', {
         user_id: userId,
