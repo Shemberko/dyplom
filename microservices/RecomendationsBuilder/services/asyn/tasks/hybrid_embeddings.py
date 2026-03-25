@@ -50,7 +50,6 @@ def _train_graphsage(client: Any):
     """
     print("GDS: Аналіз розміру графа для вибору параметрів...")
     
-    # 1. Отримуємо статистику спроєктованого графа
     stats_query = f"CALL gds.graph.list('{GRAPH_NAME}') YIELD nodeCount, relationshipCount RETURN nodeCount, relationshipCount"
     res = client.run_query(stats_query)
     
@@ -58,14 +57,11 @@ def _train_graphsage(client: Any):
     rel_count = res[0]['relationshipCount'] if res else 0
     print(f"GDS: Розмір графа: {node_count} вузлів, {rel_count} зв'язків.")
 
-    # 2. Динамічна логіка (Евристика)
     if node_count < 1000:
-        # Мікро-граф (Холодний старт) - уникаємо перезгладжування
         epochs = 3
         sample_sizes = "[5, 2]"
         aggregator = "pool"
     elif node_count < 5000:
-        # Середній граф
         epochs = 10
         sample_sizes = "[10, 5]"
         aggregator = "pool"
@@ -86,7 +82,7 @@ def _train_graphsage(client: Any):
         modelName: '{MODEL_NAME}',
         featureProperties: ['features'],
         relationshipWeightProperty: 'weight',
-        negativeSampleWeight: 45,
+        negativeSampleWeight: 5,
         embeddingDimension: {HYBRID_DIM},
         aggregator: '{aggregator}',       
         activationFunction: 'relu',
@@ -162,9 +158,9 @@ def update_user_text_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ag
     Оновлює профіль користувача.
     
     ПОКРАЩЕННЯ:
-    1. Reward Signal: Якщо це був перехід з рекомендації (source='recommendation'),
-       ми множимо вагу на 2.0. Це каже моделі: "Користувачу це сподобалось, давай ще такого!".
+    1. Reward Signal: Якщо це був перехід з рекомендації, множимо вагу на 2.0.
     2. Text Focus: Базова вага залежить від active_time.
+    3. Tracking: Ставить мітку `tracked = true` на візити, щоб потім їх можна було відняти при видаленні.
     """
     client = neo4j_client_arg if neo4j_client_arg else neo4j_client
 
@@ -176,18 +172,24 @@ def update_user_text_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ag
          datetime(v.visitedAt[-1]) AS last_visit_time,
          coalesce(v.active_time, 0.5) AS reading_time
     
+    // Фільтруємо за часом і беремо ТІЛЬКИ ті, що ще НЕ враховані
     WHERE last_visit_time >= datetime() - duration({hours: $hours_ago})
+      AND coalesce(v.tracked, false) = false
     
     WITH p.text_embedding AS emb,
          (reading_time * exp(-0.05 * duration.inDays(last_visit_time, datetime()).days) *
           CASE WHEN v.source = 'recommendation' THEN 2.0 ELSE 1.0 END
-         ) AS w
+         ) AS w,
+         elementId(v) AS visit_id
     
-    RETURN emb, w
+    RETURN emb, w, visit_id
     """
     
     try:
         records = client.run_query(FETCH_Q, {'user_id': user_id, 'hours_ago': hours_ago})
+        
+        visit_ids = [r["visit_id"] for r in records if r.get("visit_id")]
+        
         (batch_sum, batch_w, dim) = aggregate_hybrid_visits(records)
         
         if not batch_sum: return "No updates."
@@ -215,9 +217,23 @@ def update_user_text_profile_batch(neo4j_client_arg: Any, user_id: str, hours_ag
             u.totalWeight = $total_w,
             u.text_embedding = $embedding,
             u.profileUpdatedAt = datetime()
+        WITH u
+        
+        // Знаходимо щойно оброблені зв'язки та позначаємо їх як враховані
+        UNWIND $visit_ids AS vid
+        MATCH (u)-[v:VISIT]->() WHERE elementId(v) = vid
+        SET v.tracked = true
         """
-        client.run_query(WRITE_Q, {'user_id': user_id, 'sum': new_sum, 'total_w': new_w, 'embedding': new_emb})
-        return "Profile Updated."
+        
+        client.run_query(WRITE_Q, {
+            'user_id': user_id, 
+            'sum': new_sum, 
+            'total_w': new_w, 
+            'embedding': new_emb,
+            'visit_ids': visit_ids
+        })
+        
+        return f"Profile Updated. Tracked {len(visit_ids)} new visits."
 
     except Exception as e:
         traceback.print_exc()
@@ -250,21 +266,33 @@ def aggregate_hybrid_visits(records):
 @app.task(bind=True, max_retries=3)
 def task_build_graph_and_update_user(self, user_id: str = None, force_retrain: bool = True):
     """
-    Розумний пайплайн:
-    - Якщо викликаємо часто -> просто оновлюємо вектори (швидко).
-    - Якщо force_retrain=True -> повне навчання.
+    Розумний пайплайн (ВИПРАВЛЕНИЙ ПОРЯДОК):
+    1. Оновлюємо текстові центроїди користувачів (щоб GraphSAGE мав актуальні базові фічі).
+    2. Запускаємо GraphSAGE (який використає ці фічі для побудови графа).
     """
     try:
-        sage_msg = run_graphsage_pipeline(neo4j_client, force_retrain=force_retrain)
-        print(f">> GraphSAGE: {sage_msg}")
-        
+        print(">> Крок 1: Оновлення текстових векторів користувачів...")
         if user_id:
             update_user_text_profile_batch(neo4j_client, user_id)
         else:
-            users = neo4j_client.run_query("MATCH (u:User) RETURN u.id as id")
-            for u in users:
-                update_user_text_profile_batch(neo4j_client, u['id'])
+            query = """
+            MATCH (u:User)-[v:VISIT]->(p:Page)
+            WHERE datetime(v.visitedAt[-1]) >= datetime() - duration('PT1H')
+            RETURN DISTINCT u.id AS id
+            """
+            active_users = neo4j_client.run_query(query)
+            if active_users:
+                print(f">> Знайдено {len(active_users)} активних користувачів.")
+                for u in active_users:
+                    update_user_text_profile_batch(neo4j_client, u['id'], hours_ago=1)
+            else:
+                print(">> Активних користувачів за останню годину немає.")
+
+        print(">> Крок 2: Запуск GraphSAGE пайплайну...")
+        sage_msg = run_graphsage_pipeline(neo4j_client, force_retrain=force_retrain)
+        print(f">> GraphSAGE: {sage_msg}")
         
         return "Pipeline Done"
     except Exception as exc:
+        traceback.print_exc()
         raise self.retry(exc=exc, countdown=60)

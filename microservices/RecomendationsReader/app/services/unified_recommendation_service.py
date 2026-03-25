@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Query, Depends, BackgroundTasks
 from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, timezone, timedelta
 from app.dependencies.auth import get_current_user_id
 from app.services.neo4j.query_runner import query_runner as neo4j_client
 
@@ -16,9 +17,6 @@ class UnifiedRecommendationService:
         self.client = client or neo4j_client
 
     def get_recommendations(self, user_id: str, page: int, size: int, weight_struct: float) -> Tuple[List[Dict[str, Any]], int]:
-        """
-        Повертає зріз рекомендацій (data) та загальну кількість знайдених кандидатів (total_count).
-        """
         user_profile = self._fetch_user_profiles(user_id)
         
         text_emb = user_profile.get("text_emb")
@@ -75,8 +73,11 @@ class UnifiedRecommendationService:
                 "score": round(final_score, 4),
                 "text_score": round(t_score, 4),
                 "hybrid_score": round(h_score, 4),
-                "type": rec_type
+                "type": rec_type,
+                "visit_count": node_data.get("visit_count", 0),
+                "last_visited": node_data.get("last_visited")
             })
+            
         merged_results.sort(key=lambda x: x['score'], reverse=True)
         total_count = len(merged_results)
 
@@ -98,65 +99,110 @@ class UnifiedRecommendationService:
         CALL db.index.vector.queryNodes('{index_name}', $k, $embedding)
         YIELD node AS page, score
         
-        // Повністю виключаємо відвідані сторінки
         WHERE NOT EXISTS {{
             MATCH (u:User {{id: $user_id}})-[v:VISIT]->(page)
         }}
+
+        OPTIONAL MATCH (page)<-[all_v:VISIT]-()
 
         RETURN 
             elementId(page) as elementId,
             page.url as url,
             page.title as title,
             page.image as image,
-            score
+            score,
+            count(all_v) as visit_count,
+            // Збираємо всі мітки часу (з розширення та бекенду), щоб знайти макс. у Python
+            collect(coalesce(all_v.last_visited, all_v.visitedAt)) as visit_times
         """
         try:
             results = self.client.run_query(query, {"user_id": user_id, "embedding": embedding, "k": k})
-            return [{
-                "id": r.get("elementId"),
-                "url": r.get("url"),
-                "title": r.get("title"),
-                "image": r.get("image"),
-                "score": r.get("score", 0.0)
-            } for r in results]
+            
+            parsed_results = []
+            for r in results:
+                # Безпечно шукаємо найновішу дату візиту
+                latest_time = ""
+                for t in r.get("visit_times", []):
+                    time_str = str(t[-1]) if isinstance(t, list) and t else str(t) if t else ""
+                    if time_str > latest_time and time_str != "None":
+                        latest_time = time_str
+                        
+                parsed_results.append({
+                    "id": r.get("elementId"),
+                    "url": r.get("url"),
+                    "title": r.get("title"),
+                    "image": r.get("image"),
+                    "score": r.get("score", 0.0),
+                    "visit_count": r.get("visit_count", 0),
+                    "last_visited": latest_time if latest_time else None
+                })
+            return parsed_results
+            
         except Exception as e:
             log.error(f"Vector search failed on {index_name}: {e}")
             return []
 
     def _get_trending_fallback(self, page: int, size: int) -> Tuple[List[Dict[str, Any]], int]:
-        count_query = """
-        MATCH (p:Page)<-[v:VISIT]-()
-        WHERE datetime(v.visitedAt[-1]) > datetime() - duration('P7D')
-        RETURN count(DISTINCT p) as total
-        """
-        total_res = self.client.run_one(count_query)
-        total_count = total_res["total"] if total_res else 0
-
-        skip = (page - 1) * size
+        # Витягуємо дані без фільтрації дат у Cypher, щоб уникнути конфліктів типів
         query = """
         MATCH (p:Page)<-[v:VISIT]-()
-        WHERE datetime(v.visitedAt[-1]) > datetime() - duration('P7D')
-        RETURN elementId(p) as id, p.url as url, p.title as title, p.image as image, count(v) as score
-        ORDER BY score DESC
-        SKIP $skip LIMIT $limit
+        RETURN 
+            elementId(p) as id, 
+            p.url as url, 
+            p.title as title, 
+            p.image as image, 
+            collect(coalesce(v.last_visited, v.visitedAt)) as visit_times
         """
-        results = self.client.run_query(query, {"skip": skip, "limit": size})
+        results = self.client.run_query(query)
         
-        data = [{
-            "id": r["id"], "url": r["url"], "title": r["title"], 
-            "image": r["image"], "score": r["score"], "type": "trending"
-        } for r in results]
+        # Обчислюємо дату відсічення (7 днів тому)
+        cutoff_str = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         
-        return data, total_count
+        trending_data = []
+        for r in results:
+            valid_visits = 0
+            latest_time = ""
+            
+            for t in r.get("visit_times", []):
+                # Парсимо дату (розширення передає рядок, бекенд міг масив)
+                time_str = str(t[-1]) if isinstance(t, list) and t else str(t) if t else ""
+                if not time_str or time_str == "None":
+                    continue
+                    
+                # Якщо візит відбувся в останні 7 днів
+                if time_str[:19] >= cutoff_str[:19]:
+                    valid_visits += 1
+                    
+                if time_str > latest_time:
+                    latest_time = time_str
+                    
+            if valid_visits > 0:
+                trending_data.append({
+                    "id": r["id"], 
+                    "url": r["url"], 
+                    "title": r["title"], 
+                    "image": r["image"], 
+                    "score": valid_visits, # Score для трендів = кількість свіжих візитів
+                    "type": "trending",
+                    "visit_count": len(r["visit_times"]), # Глобальна статистика за весь час
+                    "last_visited": latest_time if latest_time else None
+                })
+                
+        # Сортуємо від найпопулярніших до найменш популярних
+        trending_data.sort(key=lambda x: x["score"], reverse=True)
+        total_count = len(trending_data)
+
+        skip = (page - 1) * size
+        return trending_data[skip : skip + size], total_count
 
     def track_user_visit(self, user_id: str, page_id: str, source: str = "recommendation") -> bool:
+        # Безпечний запис: ми просто встановлюємо last_visited рядком і не чіпаємо масиви
         query = """
         MATCH (u:User {id: $user_id})
         MATCH (p:Page) WHERE elementId(p) = $page_id
         MERGE (u)-[v:VISIT]->(p)
-        SET v.visitedAt = coalesce(v.visitedAt, []) + datetime(),
-            v.source = $source,
-            v.last_visited = datetime(),
+        SET v.source = $source,
+            v.last_visited = toString(datetime()),
             v.active_time = coalesce(v.active_time, 0.5)
         RETURN elementId(v) as visit_id
         """

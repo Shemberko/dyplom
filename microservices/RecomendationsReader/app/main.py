@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import recommendations, authorization, profile, text_recommendations, statistic, unified_recommendations
+from app.routers import recommendations, authorization, profile, text_recommendations, statistic, unified_recommendations, stats, history
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,3 +24,6 @@ app.include_router(authorization.router, prefix="/sso", tags=["authorization"])
 app.include_router(profile.router, prefix="/profile", tags=["profile"])
 app.include_router(statistic.router, prefix="/statistic", tags=["statistic"])
 app.include_router(unified_recommendations.router, prefix="/recommendations", tags=["statistic"])
+app.include_router(stats.router, prefix="/stats", tags=["statistic"])
+app.include_router(history.router, prefix="/history", tags=["statistic"])
+

@@ -145,3 +145,6 @@ class RecommendationService:
         except Exception as e:
             log.error(f"Failed to track visit for user {user_id}: {e}")
             return False
+        
+
+        
