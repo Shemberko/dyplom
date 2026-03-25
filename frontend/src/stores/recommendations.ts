@@ -10,6 +10,8 @@ export interface PageRecommendation {
   score: number;
   description?: string;
   type: string;
+  visit_count?: number;
+  last_visited?: string;
 }
 
 export const useRecommendationStore = defineStore('recommendations', () => {
@@ -73,6 +75,7 @@ export const useRecommendationStore = defineStore('recommendations', () => {
   }
 
   return {
+    rawRecommendations,
     isLoading,
     hasMoreOnServer,
     displayRecommendations,

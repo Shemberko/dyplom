@@ -218,13 +218,17 @@ export const api = () => {
     };
 
 
-    const deleteData = async (url: string, id: number) => {
-        
+    const deleteData = async (url: string, id?: string | number) => {
         const currentToken = await ensureAuth(); 
         const absoluteUrl = getAbsoluteUrl(url);
+        
         const executeDelete = async (jwt: string) => {
             const headers = { 'Authorization': `Bearer ${jwt}` };
-            const { data } = await axios.delete(`${absoluteUrl}/${id}`, { headers }); 
+            
+            // Формуємо фінальний URL залежно від того, чи передано id
+            const finalUrl = id !== undefined ? `${absoluteUrl}/${id}` : absoluteUrl;
+            
+            const { data } = await axios.delete(finalUrl, { headers }); 
             return data;
         };
 
@@ -262,7 +266,6 @@ export const api = () => {
             throw error;
         }
     };
-
 
     const getData = async (url: string, params: Record<string, any> = {}) => {
     const currentToken = await ensureAuth(); 
