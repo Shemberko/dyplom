@@ -1,0 +1,11 @@
+node_modules
+dist
+google_add/node_modules
+google_add/dist
+*.pyc
+__pycache__
+*.pyo
+*.pyd
+.Python
+docks
+documentation
