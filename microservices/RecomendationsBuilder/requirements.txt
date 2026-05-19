@@ -11,3 +11,5 @@ neo4j
 sentence-transformers
 debugpy
 numpy
+scikit-learn
+matplotlib

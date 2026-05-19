@@ -12,3 +12,5 @@ ollama
 beautifulsoup4
 langdetect
 warcio
+scikit-learn
+matplotlib

@@ -3,13 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    body { font-family: sans-serif; padding: 10px; width: 300px; }
-    #advice { font-weight: bold; margin-top: 10px; }
+    body { font-family: sans-serif; padding: 12px; width: 320px; }
+    .header { display:flex; align-items:center; justify-content:space-between }
+    h3 { margin: 0 0 8px 0 }
+    #domain-list { margin-top: 8px; max-height: 220px; overflow:auto; }
+    .item { display:flex; justify-content:space-between; align-items:center; padding:6px 4px; border-bottom:1px solid #eee }
+    .remove-btn { background:transparent; border:none; color:#c00; cursor:pointer }
+    .input-row { display:flex; gap:8px; margin-top:8px }
+    input[type=text]{flex:1;padding:6px}
+    button.primary{padding:6px 8px}
+    .empty-state{color:#666}
   </style>
 </head>
 <body>
-  <h3>Ваш актив</h3>
-  <div id="advice">Завантаження...</div>
+  <div class="header"><h3>Виключені домени</h3></div>
+
+  <div id="domain-list"></div>
+
+  <div class="input-row">
+    <input id="domain-input" type="text" placeholder="example.com" />
+    <button id="add-btn" class="primary">Додати</button>
+  </div>
 
   <script src="popup.js"></script>
 </body>

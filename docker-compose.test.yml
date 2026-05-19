@@ -1,0 +1,92 @@
+version: "3.8"
+
+# ============================================================
+# Запуск тестів: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+# ============================================================
+#
+# Всі 4 мікросервіси тестуються ізольовано.
+# Neo4j, RabbitMQ, Redis, Ollama — НЕ потрібні.
+# Всі зовнішні залежності замокано через unittest.mock.
+#
+
+services:
+
+  # ----------------------------------------------------------
+  # 1. RecomendationsReader (FastAPI + Neo4j)
+  # ----------------------------------------------------------
+  test-reader:
+    build:
+      context: ./microservices/RecomendationsReader
+      dockerfile: Dockerfile
+    container_name: test-reader
+    working_dir: /app
+    command: >
+      sh -c "pip install --quiet -r requirements-test.txt &&
+             pytest tests/ -v --tb=short"
+    environment:
+      - NEO4J_URI=bolt://fake-neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=test
+      - NEO4J_DATABASE=neo4j
+      - JWT_SECRET_KEY=test-secret-key
+      - JWT_ALGORITHM=HS256
+      - AMQP_URL=amqp://guest:guest@fake-rabbit/
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://fake-jaeger:4318/v1/traces
+
+  # ----------------------------------------------------------
+  # 2. server (FastAPI WebSocket gateway)
+  # ----------------------------------------------------------
+  test-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: test-server
+    working_dir: /app
+    command: >
+      sh -c "pip install --quiet -r requirements-test.txt &&
+             pytest tests/ -v --tb=short"
+    environment:
+      - AMQP_URL=amqp://guest:guest@fake-rabbit/
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://fake-jaeger:4318/v1/traces
+
+  # ----------------------------------------------------------
+  # 3. RawDataCollector (AMQP consumer + Ollama)
+  # ----------------------------------------------------------
+  test-rawdata:
+    build:
+      context: ./microservices/RawDataCollector
+      dockerfile: Dockerfile
+    container_name: test-rawdata
+    working_dir: /app
+    command: >
+      sh -c "pip install --quiet -r requirements-test.txt &&
+             pytest tests/ -v --tb=short"
+    environment:
+      - NEO4J_URI=bolt://fake-neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=test
+      - NEO4J_DATABASE=neo4j
+      - OLLAMA_HOST=http://fake-ollama:11434
+      - AMQP_URL=amqp://guest:guest@fake-rabbit/
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://fake-jaeger:4318/v1/traces
+
+  # ----------------------------------------------------------
+  # 4. RecomendationsBuilder (Celery + GraphSAGE)
+  # ----------------------------------------------------------
+  test-builder:
+    build:
+      context: ./microservices/RecomendationsBuilder
+      dockerfile: Dockerfile
+    container_name: test-builder
+    working_dir: /app
+    command: >
+      sh -c "pip install --quiet -r requirements-test.txt &&
+             pytest tests/ -v --tb=short"
+    environment:
+      - NEO4J_URI=bolt://fake-neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=test
+      - CELERY_BROKER_URL=amqp://guest:guest@fake-rabbit/
+      - CELERY_BACKEND_URL=redis://fake-redis:6379/0
+      - AMQP_URL=amqp://guest:guest@fake-rabbit/
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://fake-jaeger:4318/v1/traces

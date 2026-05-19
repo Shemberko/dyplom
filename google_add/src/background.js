@@ -118,6 +118,57 @@ function sendLogToServer() {
 
 const IGNORED_DOMAINS_KEY = 'ignored_domains';
 
+// Context menu: allow adding current page domain to ignored domains
+function ensureContextMenu() {
+    try {
+        if (chrome.contextMenus && chrome.contextMenus.removeAll) {
+            chrome.contextMenus.removeAll(() => {
+                try {
+                    chrome.contextMenus.create({
+                        id: 'add-domain-ignore',
+                        title: 'Додати домен у виключення',
+                        contexts: ['page', 'selection', 'link']
+                    });
+                } catch (e) {
+                    console.error('[background] contextMenus.create failed:', e);
+                }
+            });
+        } else if (chrome.contextMenus && chrome.contextMenus.create) {
+            chrome.contextMenus.create({
+                id: 'add-domain-ignore',
+                title: 'Додати домен у виключення',
+                contexts: ['page', 'selection', 'link']
+            });
+        }
+    } catch (e) {
+        console.error('[background] ensureContextMenu error:', e);
+    }
+}
+
+// Create context menu on startup and on install
+ensureContextMenu();
+chrome.runtime.onInstalled && chrome.runtime.onInstalled.addListener && chrome.runtime.onInstalled.addListener(ensureContextMenu);
+
+chrome.contextMenus && chrome.contextMenus.onClicked && chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId !== 'add-domain-ignore') return;
+    const pageUrl = (tab && tab.url) || info.pageUrl || info.linkUrl;
+    if (!pageUrl) return;
+    try {
+        const hostname = new URL(pageUrl).hostname.replace(/^www\./, '').toLowerCase();
+        chrome.storage.local.get([IGNORED_DOMAINS_KEY], (res) => {
+            const list = res[IGNORED_DOMAINS_KEY] || [];
+            if (!list.includes(hostname)) {
+                list.push(hostname);
+                chrome.storage.local.set({ [IGNORED_DOMAINS_KEY]: list }, () => {
+                    console.log('[background] Added to ignored domains via context menu:', hostname);
+                });
+            }
+        });
+    } catch (err) {
+        console.error('[background] Failed to add domain from context menu:', err);
+    }
+});
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     chrome.storage.local.get([STORAGE_KEY, IGNORED_DOMAINS_KEY], (res) => {
         if (res[STORAGE_KEY] === false) return;
