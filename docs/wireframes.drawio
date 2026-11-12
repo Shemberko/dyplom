@@ -1,0 +1,209 @@
+<mxfile host="app.diagrams.net" pages="3">
+  <diagram id="wireframes" name="UI Wireframes">
+    <mxGraphModel dx="2575" dy="1405" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="w1_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;" value="" vertex="1">
+          <mxGeometry height="700" width="800" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_header" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="50" width="800" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_logo" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#673ab7;fontSize=16;" value="&lt;b&gt;Insights&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="100" x="20" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_nav" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontColor=#333333;" value="Головна &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; Рекомендації &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; Статистика" vertex="1">
+          <mxGeometry height="30" width="300" x="250" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_user" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#666666;" value="sasha.shemberko@..." vertex="1">
+          <mxGeometry height="30" width="150" x="630" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_badge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=none;fontColor=#673ab7;fontSize=10;" value="AI-POWERED ANALYTICS" vertex="1">
+          <mxGeometry height="20" width="160" x="320" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 28px;&quot;&gt;Аналізуйте свій час з Insights&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="500" x="150" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_sub" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#666666;" value="Розумний помічник, який допомагає оптимізувати вашу активність у браузері та надає персоналізовані рекомендації." vertex="1">
+          <mxGeometry height="40" width="400" x="200" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_recs_bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;align=left;verticalAlign=top;spacingLeft=20;spacingTop=10;" value="" vertex="1">
+          <mxGeometry height="220" width="720" x="40" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_recs_title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b&gt;Топ рекомендації&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="60" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rc1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;dashed=1;" value="Card Placeholder" vertex="1">
+          <mxGeometry height="150" width="210" x="60" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rc2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;dashed=1;" value="Card Placeholder" vertex="1">
+          <mxGeometry height="150" width="210" x="295" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rc3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;dashed=1;" value="Card Placeholder" vertex="1">
+          <mxGeometry height="150" width="210" x="530" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rec_visits" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;align=left;verticalAlign=top;spacingLeft=20;spacingTop=10;" value="&lt;b&gt;Останні візити&lt;/b&gt;" vertex="1">
+          <mxGeometry height="150" width="720" x="40" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rv1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;dashed=1;" value="Visit Item" vertex="1">
+          <mxGeometry height="90" width="160" x="60" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rv2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;dashed=1;" value="Visit Item" vertex="1">
+          <mxGeometry height="90" width="160" x="240" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="w1_rv3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;dashed=1;" value="Visit Item" vertex="1">
+          <mxGeometry height="90" width="160" x="420" y="590" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="1ffX9lf7vdu6XZZ5iSlC" name="Сторінка-2">
+    <mxGraphModel dx="1717" dy="937" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;" value="" vertex="1">
+          <mxGeometry height="700" width="800" x="250" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="50" width="800" x="250" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-3" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#673ab7;fontSize=16;" value="&lt;b&gt;Insights&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="100" x="270" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-4" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontColor=#333333;" value="Головна &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;b&gt;Рекомендації&lt;/b&gt; &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; Статистика" vertex="1">
+          <mxGeometry height="30" width="300" x="500" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-5" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#666666;" value="sasha.shemberko@..." vertex="1">
+          <mxGeometry height="30" width="150" x="880" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="260" width="220" x="290" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=none;fontSize=10;align=center;fontColor=#666666;" value="ТОП ЗБІГ &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &lt;b&gt;77.7%&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="300" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f4f4;strokeColor=none;fontColor=#aaaaaa;" value="&lt;i&gt;Image Placeholder&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="300" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-9" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#673ab7;align=left;" value="uk.wikipedia.org" vertex="1">
+          <mxGeometry height="20" width="200" x="300" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-10" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=14;align=left;verticalAlign=top;whiteSpace=wrap;" value="&lt;b&gt;Програмний агент - Wikipedia&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="200" x="300" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-11" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;align=left;" value="Читати статтю &amp;rarr;" vertex="1">
+          <mxGeometry height="20" width="100" x="300" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="260" width="220" x="540" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=none;fontSize=10;align=center;fontColor=#666666;" value="ЗА ГРАФОМ &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;b&gt;77.2%&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="550" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f4f4;strokeColor=none;fontColor=#aaaaaa;" value="&lt;i&gt;Image Placeholder&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="550" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-15" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#673ab7;align=left;" value="uk.wikipedia.org" vertex="1">
+          <mxGeometry height="20" width="200" x="550" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-16" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=14;align=left;verticalAlign=top;whiteSpace=wrap;" value="&lt;b&gt;Anthropic - Wikipedia&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="200" x="550" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-17" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;align=left;" value="Читати статтю &amp;rarr;" vertex="1">
+          <mxGeometry height="20" width="100" x="550" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="260" width="220" x="790" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=none;fontSize=10;align=center;fontColor=#666666;" value="ТОП ЗБІГ &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &lt;b&gt;76.8%&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="800" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-20" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f4f4;strokeColor=none;fontColor=#aaaaaa;" value="&lt;i&gt;Image Placeholder&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="800" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-21" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#673ab7;align=left;" value="uk.wikipedia.org" vertex="1">
+          <mxGeometry height="20" width="200" x="800" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-22" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=14;align=left;verticalAlign=top;whiteSpace=wrap;" value="&lt;b&gt;Системи та засоби штучного інтелекту - Wikipedia&lt;/b&gt;" vertex="1">
+          <mxGeometry height="50" width="200" x="800" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-23" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;align=left;" value="Читати статтю &amp;rarr;" vertex="1">
+          <mxGeometry height="20" width="100" x="800" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-24" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;dashed=1;fontColor=#999999;" value="Card 4" vertex="1">
+          <mxGeometry height="260" width="220" x="290" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-25" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;dashed=1;fontColor=#999999;" value="Card 5" vertex="1">
+          <mxGeometry height="260" width="220" x="540" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="gM2Pa5HEdjXUjTY6n9PD-26" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;dashed=1;fontColor=#999999;" value="Card 6" vertex="1">
+          <mxGeometry height="260" width="220" x="790" y="760" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="427FqN2k89YVSgNFWGDB" name="Сторінка-3">
+    <mxGraphModel dx="1717" dy="937" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#d7d7d7;" value="" vertex="1">
+          <mxGeometry height="700" width="800" x="190" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="50" width="800" x="190" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-3" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#673ab7;fontSize=16;" value="&lt;b&gt;Insights&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="100" x="210" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-4" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontColor=#333333;" value="Головна &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; Рекомендації &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;b&gt;Статистика&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="300" x="440" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-5" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 24px;&quot;&gt;Ваша Аналітика&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="300" x="230" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="80" width="220" x="230" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-7" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#333333;" value="ВСЬОГО ВІЗИТІВ&lt;br&gt;&lt;b style=&quot;font-size: 20px;&quot;&gt;36&lt;/b&gt;" vertex="1">
+          <mxGeometry height="60" width="130" x="300" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="80" width="220" x="480" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-9" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#333333;" value="УНІКАЛЬНИХ СТОРІНОК&lt;br&gt;&lt;b style=&quot;font-size: 20px;&quot;&gt;33&lt;/b&gt;" vertex="1">
+          <mxGeometry height="60" width="140" x="550" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="80" width="220" x="730" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-11" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#333333;" value="КАТЕГОРІЙ&lt;br&gt;&lt;b style=&quot;font-size: 20px;&quot;&gt;6&lt;/b&gt;" vertex="1">
+          <mxGeometry height="60" width="130" x="800" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="350" width="350" x="230" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-13" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b&gt;Активність за 7 днів&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="260" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6050e8;strokeColor=none;fontColor=#ffffff;" value="Bar Chart Area" vertex="1">
+          <mxGeometry height="180" width="270" x="270" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e6e6e6;" value="" vertex="1">
+          <mxGeometry height="350" width="340" x="610" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-16" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b&gt;Сфери інтересів&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="640" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-17" parent="1" style="shape=ellipse;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6050e8;strokeWidth=20;" value="&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="160" width="160" x="700" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="MD9LwSiuAmXJNWtsK0A9-18" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b&gt;ТОП&lt;/b&gt;&lt;br&gt;Artificial" vertex="1">
+          <mxGeometry height="60" width="80" x="740" y="800" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,6 +1,0 @@
-aio-pika
-neo4j
-opentelemetry-api
-opentelemetry-sdk
-opentelemetry-exporter-otlp
-python-dotenv

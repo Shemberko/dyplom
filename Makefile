@@ -4,10 +4,10 @@
 #
 # Використання:
 #   make test            — запустити ВСІ тести через Docker
-#   make test-reader     — тільки RecomendationsReader
+#   make test-reader     — тільки RecommendationsReader
 #   make test-server     — тільки server
 #   make test-rawdata    — тільки RawDataCollector
-#   make test-builder    — тільки RecomendationsBuilder
+#   make test-builder    — тільки RecommendationsBuilder
 #
 
 .PHONY: test test-reader test-server test-rawdata test-builder \
@@ -37,7 +37,7 @@ test-builder:
 
 # --- Локальний запуск (без Docker) ---
 test-local-reader:
-	cd microservices/RecomendationsReader && \
+	cd microservices/RecommendationsReader && \
 	pip install -q -r requirements.txt -r requirements-test.txt && \
 	PYTHONPATH=. pytest tests/ -v --tb=short
 
@@ -52,7 +52,7 @@ test-local-rawdata:
 	PYTHONPATH=. pytest tests/ -v --tb=short
 
 test-local-builder:
-	cd microservices/RecomendationsBuilder && \
+	cd microservices/RecommendationsBuilder && \
 	pip install -q -r requirements.txt -r requirements-test.txt && \
 	PYTHONPATH=. pytest tests/ -v --tb=short
 

@@ -1,0 +1,6 @@
+.env
+**/__pycache__
+*.pyc
+*.log
+celerybeat-schedule*
+.pytest_cache

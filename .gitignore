@@ -1,11 +1,34 @@
-node_modules
-dist
-google_add/node_modules
-google_add/dist
-*.pyc
-__pycache__
-*.pyo
-*.pyd
-.Python
-docks
-documentation
+# Dependencies / builds
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets — use .env.example as a template
+.env
+**/.env
+
+# Runtime artefacts
+*.log
+celerybeat-schedule*
+*.dump
+
+# Thesis documents & local notes (not part of the code)
+docks/
+upload/
+presentation/
+instructions
+*.docx
+*.pptx
+Readme.txt
+README_UA.md
+
+# Root npm leftovers
+/package.json
+/package-lock.json

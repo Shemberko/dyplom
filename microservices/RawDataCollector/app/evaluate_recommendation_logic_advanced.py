@@ -29,10 +29,10 @@ from services.neo4j.history_service import HistoryService
 try:
     import sys
     sys.path.insert(0, '/app')
-    from microservices.RecomendationsBuilder.services.asyn.tasks.hybrid_embeddings import (
+    from microservices.RecommendationsBuilder.services.asyn.tasks.hybrid_embeddings import (
         run_graphsage_pipeline
     )
-    from microservices.RecomendationsBuilder.services.neo4j.query_runner import query_runner as neo4j_graphsage_client
+    from microservices.RecommendationsBuilder.services.neo4j.query_runner import query_runner as neo4j_graphsage_client
     GRAPHSAGE_AVAILABLE = True
 except ImportError:
     print("WARNING: GraphSAGE retraining modules not available. Will use pre-trained embeddings only.")

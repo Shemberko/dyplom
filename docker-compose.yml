@@ -1,150 +1,169 @@
-version: "3.8"
+# Tab Insights — full local stack.
+#   cp .env.example .env && docker compose up --build
+# All settings come from the root .env file (see .env.example).
+
+x-otel: &otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+
+x-neo4j-env: &neo4j-env
+  NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+  NEO4J_USER: ${NEO4J_USERNAME:-neo4j}
+  NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+  NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
 
 services:
-  fastapi-server:
-    build: ./server
-    container_name: fastapi-server
+  # ---------- Infrastructure ----------
+  neo4j:
+    image: neo4j:5.26
+    container_name: neo4j
     ports:
-      - "8000:8000"
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      jaeger:
-        condition: service_started
+      - "7474:7474" # Browser UI
+      - "7687:7687" # Bolt
     environment:
-      - AMQP_URL=amqp://guest:guest@rabbitmq/
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-  ollama:
-    build: ./microservices/ollama_custom 
-    container_name: ollama_service
-    ports:
-      - "11434:11434"
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["graph-data-science"]' # GraphSAGE lives in GDS
+      NEO4J_dbms_security_procedures_unrestricted: gds.*
     volumes:
-      - ollama_data:/root/.ollama
-    restart: always
+      - neo4j_data:/data
     healthcheck:
-      test: "ollama list || exit 1"
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USERNAME:-neo4j} -p '${NEO4J_PASSWORD}' 'RETURN 1' || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 20
 
-  rawdatacollector:
-    build: ./microservices/RawDataCollector
-    container_name: rawdatacollector
+  # One-shot job: creates vector indexes used by the recommendations API.
+  neo4j-init:
+    image: neo4j:5.26
+    depends_on:
+      neo4j:
+        condition: service_healthy
     volumes:
-      - ./microservices/RawDataCollector:/app:rw
-      - huggingface_cache:/root/.cache/huggingface
-    ports:
-      - "5678:5678"
-    command: >
-      python -u app/main.py
-    env_file:
-      - ./microservices/RawDataCollector/.env
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - NEO4J_DATABASE=${NEO4J_DATABASE}
-      - AMQP_URL=amqp://guest:guest@rabbitmq/
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      jaeger:
-        condition: service_started
-      ollama:
-        condition: service_healthy
-    stdin_open: true
-    tty: true
-
-  recomendationsreader:
-    build: ./microservices/RecomendationsReader
-    container_name: recomendationsreader
-    ports:
-      - "8001:8001"
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      jaeger:
-        condition: service_started
-    environment:
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - NEO4J_DATABASE=${NEO4J_DATABASE}
-      - AMQP_URL=amqp://guest:guest@rabbitmq/
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+      - ./neo4j/init.cypher:/init.cypher:ro
+    entrypoint: ["sh", "-c", "cypher-shell -a bolt://neo4j:7687 -u ${NEO4J_USERNAME:-neo4j} -p '${NEO4J_PASSWORD}' -f /init.cypher"]
+    restart: "no"
 
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
       - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      - "15672:15672" # Management UI (guest/guest)
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.62.0
     container_name: jaeger
     environment:
-      - COLLECTOR_OTLP_ENABLED=true
+      COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"
+      - "16686:16686" # Tracing UI
       - "4318:4318"
 
-  reco_base:
-    build: ./microservices/RecomendationsBuilder
-    container_name: reco_base
+  ollama:
+    build: ./microservices/ollama_custom
+    container_name: ollama_service
+    ports:
+      - "11434:11434"
     volumes:
-      # Монтуємо локальний код для Worker/Beat
-      - ./microservices/RecomendationsBuilder:/app:rw
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: "ollama list || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Application services ----------
+  # Ingestion gateway: receives browser activity (HTTP + WebSocket) and publishes it to RabbitMQ.
+  fastapi-server:
+    build: ./server
+    container_name: fastapi-server
+    ports:
+      - "8000:8000"
+    environment:
+      <<: [*otel, *neo4j-env]
+      AMQP_URL: amqp://guest:guest@rabbitmq/
     depends_on:
       rabbitmq:
         condition: service_healthy
       jaeger:
         condition: service_started
+
+  # Consumer: filters pages with an LLM, categorises/summarises them, builds S-BERT embeddings, writes the graph.
+  rawdatacollector:
+    build: ./microservices/RawDataCollector
+    container_name: rawdatacollector
+    command: python -u app/main.py
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
     environment:
-      # --- Централізоване середовище для Celery та Tracing ---
-      # NEO4J URI береться з зовнішнього оточення, як у RawDataCollector
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq/
-      # Celery Backend: Потрібен Redis, якщо RabbitMQ використовується лише як брокер
-      - CELERY_BACKEND_URL=redis://redis:6379/0 
-      - AMQP_URL=amqp://guest:guest@rabbitmq/
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
-    command: ["tail", "-f", "/dev/null"] # Заглушка
+      <<: [*otel, *neo4j-env]
+      OLLAMA_HOST: http://ollama:11434
+      AMQP_URL: amqp://guest:guest@rabbitmq/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
 
-  # 1.2. CELERY WORKER (Обробник завдань)
+  # Read API: auth (JWT), history, stats and hybrid vector-search recommendations.
+  recommendationsreader:
+    build: ./microservices/RecommendationsReader
+    container_name: recommendationsreader
+    ports:
+      - "8001:8001"
+    environment:
+      <<: [*otel, *neo4j-env]
+      AMQP_URL: amqp://guest:guest@rabbitmq/
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      JWT_ALGORITHM: HS256
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+
+  # Background jobs: Celery worker trains/applies GraphSAGE and updates user profiles; beat schedules it.
   reco_worker:
-    extends:
-      service: reco_base
+    build: ./microservices/RecommendationsBuilder
     container_name: reco_worker
-    # Запускаємо Celery Worker
     command: celery -A services.asyn.celery_worker worker -l info -Q default
+    environment: &builder-env
+      <<: [*otel, *neo4j-env]
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq/
+      CELERY_BACKEND_URL: redis://redis:6379/0
+      AMQP_URL: amqp://guest:guest@rabbitmq/
+    depends_on: &builder-deps
+      rabbitmq:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
-  # 1.3. CELERY BEAT (Планувальник - запускає Master Tasks)
   reco_beat:
-    extends:
-      service: reco_base
+    build: ./microservices/RecommendationsBuilder
     container_name: reco_beat
     command: celery -A services.asyn.celery_worker beat -l info
+    environment: *builder-env
+    depends_on: *builder-deps
 
-  redis:
-    image: redis:latest
-    container_name: redis
-    ports:
-      - "6379:6379"
-  
 volumes:
+  neo4j_data:
   ollama_data:
   huggingface_cache:

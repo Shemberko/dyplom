@@ -1,4 +1,3 @@
-version: "3.8"
 
 # ============================================================
 # Запуск тестів: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
@@ -12,11 +11,11 @@ version: "3.8"
 services:
 
   # ----------------------------------------------------------
-  # 1. RecomendationsReader (FastAPI + Neo4j)
+  # 1. RecommendationsReader (FastAPI + Neo4j)
   # ----------------------------------------------------------
   test-reader:
     build:
-      context: ./microservices/RecomendationsReader
+      context: ./microservices/RecommendationsReader
       dockerfile: Dockerfile
     container_name: test-reader
     working_dir: /app
@@ -71,11 +70,11 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://fake-jaeger:4318/v1/traces
 
   # ----------------------------------------------------------
-  # 4. RecomendationsBuilder (Celery + GraphSAGE)
+  # 4. RecommendationsBuilder (Celery + GraphSAGE)
   # ----------------------------------------------------------
   test-builder:
     build:
-      context: ./microservices/RecomendationsBuilder
+      context: ./microservices/RecommendationsBuilder
       dockerfile: Dockerfile
     container_name: test-builder
     working_dir: /app

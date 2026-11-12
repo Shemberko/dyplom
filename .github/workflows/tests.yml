@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - server
+          - microservices/RawDataCollector
+          - microservices/RecommendationsReader
+          - microservices/RecommendationsBuilder
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    env:
+      # External services are mocked in tests; these values only satisfy config loading.
+      NEO4J_URI: bolt://fake-neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: test
+      NEO4J_DATABASE: neo4j
+      JWT_SECRET_KEY: test-secret-key
+      JWT_ALGORITHM: HS256
+      AMQP_URL: amqp://guest:guest@fake-rabbit/
+      CELERY_BROKER_URL: amqp://guest:guest@fake-rabbit/
+      CELERY_BACKEND_URL: redis://fake-redis:6379/0
+      OLLAMA_HOST: http://fake-ollama:11434
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://fake-jaeger:4318/v1/traces
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU-only PyTorch (ML services)
+        if: contains(matrix.service, 'RawDataCollector') || contains(matrix.service, 'RecommendationsBuilder')
+        run: pip install --index-url https://download.pytorch.org/whl/cpu torch
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-test.txt
+      - name: Run tests
+        run: pytest

@@ -5,7 +5,7 @@ from neo4j import GraphDatabase, Driver
 class BaseService:
 
     def __init__(self, uri: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
-        uri = uri or os.getenv("NEO4J_URI", "***REMOVED***")
+        uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
         user = user or os.getenv("NEO4J_USER", "neo4j")
         password = password or os.getenv("NEO4J_PASSWORD", "password")
         self._driver: Driver = GraphDatabase.driver(uri, auth=(user, password))

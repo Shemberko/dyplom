@@ -37,15 +37,15 @@ function Run-Tests {
 }
 
 switch ($Service) {
-    "reader"  { Run-Tests "RecomendationsReader" "dyplom-recomendationsreader" "$ROOT\microservices\RecomendationsReader" }
+    "reader"  { Run-Tests "RecommendationsReader" "dyplom-recommendationsreader" "$ROOT\microservices\RecommendationsReader" }
     "server"  { Run-Tests "server"               "dyplom-fastapi-server"        "$ROOT\server" }
     "rawdata" { Run-Tests "RawDataCollector"      "dyplom-rawdatacollector"      "$ROOT\microservices\RawDataCollector" }
-    "builder" { Run-Tests "RecomendationsBuilder" "dyplom-reco_base"             "$ROOT\microservices\RecomendationsBuilder" }
+    "builder" { Run-Tests "RecommendationsBuilder" "dyplom-reco_base"             "$ROOT\microservices\RecommendationsBuilder" }
     "all" {
-        Run-Tests "RecomendationsReader" "dyplom-recomendationsreader" "$ROOT\microservices\RecomendationsReader"
+        Run-Tests "RecommendationsReader" "dyplom-recommendationsreader" "$ROOT\microservices\RecommendationsReader"
         Run-Tests "server"               "dyplom-fastapi-server"        "$ROOT\server"
         Run-Tests "RawDataCollector"     "dyplom-rawdatacollector"      "$ROOT\microservices\RawDataCollector"
-        Run-Tests "RecomendationsBuilder" "dyplom-reco_base"            "$ROOT\microservices\RecomendationsBuilder"
+        Run-Tests "RecommendationsBuilder" "dyplom-reco_base"            "$ROOT\microservices\RecommendationsBuilder"
     }
     default {
         Write-Host "Unknown service: $Service" -ForegroundColor Red
