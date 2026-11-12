@@ -27,10 +27,19 @@ class ProfileService(QueryRunner):
         profile_data = self.run_one(cypher, {"user_id": user_id})
         
         if not profile_data:
-            raise ValueError(f"User with ID {user_id} not found in database.")
+            return {"id": user_id, "email": "Користувач", "roles": [], "createdAt": None}
             
-        profile_data['email'] = profile_data.get('email')
-        profile_data['id'] = profile_data.get('id')
+        profile_data['email'] = profile_data.get('email', 'Користувач')
+        profile_data['id'] = profile_data.get('id', user_id)
+
+        # Fix Pydantic serialization error for Neo4j DateTime
+        if 'createdAt' in profile_data and profile_data['createdAt']:
+            if hasattr(profile_data['createdAt'], 'iso_format'):
+                profile_data['createdAt'] = profile_data['createdAt'].iso_format()
+            elif hasattr(profile_data['createdAt'], 'isoformat'):
+                profile_data['createdAt'] = profile_data['createdAt'].isoformat()
+            else:
+                profile_data['createdAt'] = str(profile_data['createdAt'])
 
         return profile_data
     

@@ -21,7 +21,7 @@ export const useRecommendationStore = defineStore('recommendations', () => {
   const visitedIds = ref<Set<string>>(new Set());
   
   const serverPage = ref(1);
-  const SERVER_SIZE = 100;
+  const SERVER_SIZE = 20;
   const isLoading = ref(false);
   const hasMoreOnServer = ref(true);
 

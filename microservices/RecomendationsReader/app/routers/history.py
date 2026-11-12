@@ -17,7 +17,7 @@ async def get_history(
     """
     Отримати історію переглядів для користувача з пагінацією та фільтром по днях.
     """
-    limit_needed = page * size
+    limit_needed = (page * size) + 1
     
     history_records = history_service.get_user_history(
         user_id=user_id,
@@ -43,7 +43,7 @@ async def get_history(
             "size": size, 
             "days": days,
             "total_found": len(history_records),
-            "has_next": end_index < len(history_records)
+            "has_next": len(history_records) > end_index
         }
     }
 

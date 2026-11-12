@@ -81,6 +81,10 @@ class UnifiedRecommendationService:
         merged_results.sort(key=lambda x: x['score'], reverse=True)
         total_count = len(merged_results)
 
+        if total_count == 0:
+            log.info(f"User {user_id} has embeddings but vector search yielded 0 results. Falling back to trending.")
+            return self._get_trending_fallback(page, size)
+
         start_idx = (page - 1) * size
         end_idx = start_idx + size
         
@@ -190,6 +194,31 @@ class UnifiedRecommendationService:
                 
         # Сортуємо від найпопулярніших до найменш популярних
         trending_data.sort(key=lambda x: x["score"], reverse=True)
+
+        # Фолбек: Якщо за останні 7 днів немає жодних відвідувань (наприклад, тестове середовище), 
+        # беремо найпопулярніші сторінки за весь час.
+        if not trending_data:
+            for r in results:
+                valid_visits = len(r.get("visit_times", []))
+                if valid_visits > 0:
+                    latest_time = ""
+                    for t in r.get("visit_times", []):
+                        time_str = str(t[-1]) if isinstance(t, list) and t else str(t) if t else ""
+                        if time_str and time_str != "None" and time_str > latest_time:
+                            latest_time = time_str
+                            
+                    trending_data.append({
+                        "id": r["id"], 
+                        "url": r["url"], 
+                        "title": r["title"], 
+                        "image": r["image"], 
+                        "score": valid_visits,
+                        "type": "trending",
+                        "visit_count": valid_visits,
+                        "last_visited": latest_time if latest_time else None
+                    })
+            trending_data.sort(key=lambda x: x["score"], reverse=True)
+
         total_count = len(trending_data)
 
         skip = (page - 1) * size

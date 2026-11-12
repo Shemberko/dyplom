@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'; // Повертаємо watch
+import { onMounted, watch, ref } from 'vue'; // Повертаємо watch
 import { useUserStore } from '@/stores/user';
 import { useStatsStore } from '@/stores/stats';
 import { useRecommendationStore } from '@/stores/recommendations'; // Підключаємо стор
@@ -17,7 +17,8 @@ import {
     CheckCircle2,
     Sparkles,
     Users,    
-    Activity  
+    Activity,
+    Loader2
 } from 'lucide-vue-next';
 
 const userStore = useUserStore();
@@ -43,12 +44,18 @@ watch(isAuthenticated, (isAuth) => {
     }
 }, { immediate: true }); // immediate: true гарантує, що перевірка спрацює одразу при завантаженні
 
+const isAuthenticating = ref(false);
+
 const handleLoginClick = async () => {
     try {
+        isAuthenticating.value = true;
         await ensureAuth();
         console.log('Авторизація ініційована успішно.');
+        window.location.reload();
     } catch (e) {
         console.error('Не вдалося ініціювати вхід:', e);
+    } finally {
+        isAuthenticating.value = false;
     }
 };
 </script>
@@ -139,11 +146,12 @@ const handleLoginClick = async () => {
             </div>
 
             <div class="flex justify-center">
-                <button @click="handleLoginClick" class="group relative w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/30 active:scale-95">
+                <button @click="handleLoginClick" :disabled="isAuthenticating" class="group relative w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/30 active:scale-95 disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:cursor-not-allowed">
                     <span class="absolute inset-0 w-full h-full bg-gradient-to-r from-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out"></span>
                     <span class="relative z-10 flex items-center justify-center gap-2">
-                        Увійти через Chrome Extension
-                        <ArrowRight class="w-5 h-5 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+                        <Loader2 v-if="isAuthenticating" class="w-5 h-5 animate-spin" />
+                        <span v-else>Увійти через Chrome Extension</span>
+                        <ArrowRight v-if="!isAuthenticating" class="w-5 h-5 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
                     </span>
                 </button>
             </div>

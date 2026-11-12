@@ -264,35 +264,37 @@ def aggregate_hybrid_visits(records):
 
 
 @app.task(bind=True, max_retries=3)
-def task_build_graph_and_update_user(self, user_id: str = None, force_retrain: bool = True):
+def task_build_graph_and_update_user(self):
     """
-    Розумний пайплайн (ВИПРАВЛЕНИЙ ПОРЯДОК):
-    1. Оновлюємо текстові центроїди користувачів (щоб GraphSAGE мав актуальні базові фічі).
-    2. Запускаємо GraphSAGE (який використає ці фічі для побудови графа).
+    Ця задача запускається кожні 30 секунд.
+    1. Завжди оновлює текстові профілі користувачів.
+    2. Визначає чи потрібне ПОВНЕ перенавчання (кожні 60с) чи тільки INFERENCE (швидкий підбір нових ембедингів).
     """
+    import time
     try:
         print(">> Крок 1: Оновлення текстових векторів користувачів...")
-        if user_id:
-            update_user_text_profile_batch(neo4j_client, user_id)
+        query = """
+        MATCH (u:User)-[v:VISIT]->(p:Page)
+        WHERE datetime(v.visitedAt[-1]) >= datetime() - duration('PT1H')
+        RETURN DISTINCT u.id AS id
+        """
+        active_users = neo4j_client.run_query(query)
+        if active_users:
+            print(f">> Знайдено {len(active_users)} активних користувачів.")
+            for u in active_users:
+                update_user_text_profile_batch(neo4j_client, u['id'], hours_ago=1)
         else:
-            query = """
-            MATCH (u:User)-[v:VISIT]->(p:Page)
-            WHERE datetime(v.visitedAt[-1]) >= datetime() - duration('PT1H')
-            RETURN DISTINCT u.id AS id
-            """
-            active_users = neo4j_client.run_query(query)
-            if active_users:
-                print(f">> Знайдено {len(active_users)} активних користувачів.")
-                for u in active_users:
-                    update_user_text_profile_batch(neo4j_client, u['id'], hours_ago=1)
-            else:
-                print(">> Активних користувачів за останню годину немає.")
+            print(">> Активних користувачів за останню годину немає.")
 
-        print(">> Крок 2: Запуск GraphSAGE пайплайну...")
+        # Визначаємо чи потрібне перенавчання. 
+        # (time.time() // 30) буде парним на 0с і непарним на 30с кожної хвилини (приблизно).
+        force_retrain = (int(time.time() // 30) % 2 == 0)
+
+        print(f">> Крок 2: Запуск GraphSAGE пайплайну (force_retrain={force_retrain})...")
         sage_msg = run_graphsage_pipeline(neo4j_client, force_retrain=force_retrain)
         print(f">> GraphSAGE: {sage_msg}")
         
-        return "Pipeline Done"
+        return f"Pipeline Done (Retrained: {force_retrain})"
     except Exception as exc:
         traceback.print_exc()
-        raise self.retry(exc=exc, countdown=60)
+        raise self.retry(exc=exc, countdown=10)

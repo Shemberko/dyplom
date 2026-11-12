@@ -8,7 +8,7 @@ const STORAGE_KEY = 'tracking_enabled';
 initAuthService(AUTH_URL);
 
 // Структура: { tabId: { openedAt: timestamp, activeTimeMs: number, lastActiveStart: timestamp|null } }
-let tabMetrics = {}; 
+let tabMetrics = {};
 let currentActiveTabId = null;
 
 function initTab(tabId) {
@@ -16,7 +16,7 @@ function initTab(tabId) {
         tabMetrics[tabId] = {
             openedAt: Date.now(),
             activeTimeMs: 0,
-            lastActiveStart: null 
+            lastActiveStart: null
         };
     }
 }
@@ -41,10 +41,10 @@ function sendLogToServer() {
             if (!userInfo.id) return;
 
             const metaMap = new Map((res.activityParsedData || []).map(e => [String(e.info.tabId), e]));
-            
+
             const now = Date.now();
             const logPayload = [];
-            
+
             for (const [tId, metrics] of Object.entries(tabMetrics)) {
                 if (metaMap.has(tId)) {
                     const meta = metaMap.get(tId);
@@ -62,11 +62,11 @@ function sendLogToServer() {
             const debugEntry = {
                 timestamp: new Date().toISOString(),
                 payloadSize: logPayload.length,
-                payload: logPayload,        
-                rawMetrics: { ...tabMetrics }, 
+                payload: logPayload,
+                rawMetrics: { ...tabMetrics },
                 metaMapKeys: Array.from(metaMap.keys())
             };
-            
+
             const updatedLogs = [...currentDebugLogs, debugEntry].slice(-20);
             chrome.storage.local.set({ debug_logs: updatedLogs });
             console.log("[background] Debug log saved to storage:", debugEntry);
@@ -81,36 +81,36 @@ function sendLogToServer() {
                     log: logPayload
                 })
             })
-            .then(resp => {
-                if (resp.ok) {
-                    console.log("[background] Log sent successfully.");
-                    
-                    const now = Date.now();
-                    
-                    const closedIds = (res.closedTabIds || []).map(c => String(c.tabId));
-                    const closedSet = new Set(closedIds);
+                .then(resp => {
+                    if (resp.ok) {
+                        console.log("[background] Log sent successfully.");
 
-                    for (const [tId, metrics] of Object.entries(tabMetrics)) {
-                        
-                        if (closedSet.has(tId)) {
-                            delete tabMetrics[tId];
-                        } else {
-                            metrics.activeTimeMs = 0; 
-                            metrics.openedAt = now;
-                            if (metrics.lastActiveStart !== null) {
-                                metrics.lastActiveStart = now;
+                        const now = Date.now();
+
+                        const closedIds = (res.closedTabIds || []).map(c => String(c.tabId));
+                        const closedSet = new Set(closedIds);
+
+                        for (const [tId, metrics] of Object.entries(tabMetrics)) {
+
+                            if (closedSet.has(tId)) {
+                                delete tabMetrics[tId];
+                            } else {
+                                metrics.activeTimeMs = 0;
+                                metrics.openedAt = now;
+                                if (metrics.lastActiveStart !== null) {
+                                    metrics.lastActiveStart = now;
+                                }
                             }
                         }
-                    }
 
-                    chrome.storage.local.set({ closedTabIds: [] });
-                    const newMetaData = (res.activityParsedData || []).filter(e => !closedSet.has(String(e.info.tabId)));
-                    chrome.storage.local.set({ activityParsedData: newMetaData });
-                }
-            })
-            .catch(err => {
-                console.error("Send log failed:", err);
-            });
+                        chrome.storage.local.set({ closedTabIds: [] });
+                        const newMetaData = (res.activityParsedData || []).filter(e => !closedSet.has(String(e.info.tabId)));
+                        chrome.storage.local.set({ activityParsedData: newMetaData });
+                    }
+                })
+                .catch(err => {
+                    console.error("Send log failed:", err);
+                });
         });
     });
 }
@@ -176,12 +176,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         const ignoredDomains = res[IGNORED_DOMAINS_KEY] || [];
 
         if (changeInfo.status === "complete" && tab.url && !tab.url.startsWith("chrome://")) {
-            
+
             try {
                 const url = new URL(tab.url);
-                const hostname = url.hostname.replace('www.', ''); 
-                
-                if (ignoredDomains.some(domain => hostname.includes(domain))) {
+                const hostname = url.hostname.replace('www.', '');
+
+                if (ignoredDomains.some(domain => hostname.includes(domain) || tab.url.includes(domain))) {
                     console.log(`Домен ${hostname} в списку ігнорування. Пропускаємо.`);
                     return;
                 }
@@ -190,7 +190,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             }
 
             initTab(tabId);
-            
+
             if (tab.active) {
                 currentActiveTabId = tabId;
                 tabMetrics[tabId].lastActiveStart = Date.now();
@@ -200,7 +200,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 target: { tabId: tabId },
                 files: ["services/page_analyzer.js"]
             }).then(() => {
-                chrome.tabs.sendMessage(tabId, { tabId: tabId }).catch(() => {});
+                chrome.tabs.sendMessage(tabId, { tabId: tabId }).catch(() => { });
             }).catch(e => console.log("Injection failed:", e));
         }
     });
@@ -262,4 +262,4 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     });
 });
 
-setInterval(sendLogToServer, 60000);
+setInterval(sendLogToServer, 5000);

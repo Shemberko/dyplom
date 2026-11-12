@@ -13,9 +13,9 @@ app = Celery('recommendation_app',
 app.conf.update(
     task_default_queue='default',
     beat_schedule={
-        'run-gds-graphSAGE-hourly': {
+        'run-gds-graphSAGE-frequent': {
             'task': 'services.asyn.tasks.hybrid_embeddings.task_build_graph_and_update_user',
-            'schedule': crontab(minute=0), 
+            'schedule': 30.0, 
         },
     },
     timezone='Europe/Kyiv'

@@ -91,7 +91,10 @@ const typeInfo = computed(() => {
         </span>
       </div>
 
-      <div class="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-2.5 py-1 rounded-full shadow-sm border border-white flex items-center">
+      <div
+        v-if="rec.type !== 'trending'"
+        class="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-2.5 py-1 rounded-full shadow-sm border border-white flex items-center"
+      >
         <span class="text-xs font-black text-emerald-600" title="Відсоток релевантності">
           {{ formattedScore }}
         </span>

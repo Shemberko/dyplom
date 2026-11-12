@@ -1,26 +1,45 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, watch, nextTick } from 'vue';
 import { useHistoryStore } from '@/stores/history';
-import { useUserStore } from '@/stores/user'; // Додано для перевірки авторизації
-import { Clock, Globe, ArrowUpRight, Users, Trash2 } from 'lucide-vue-next'; 
+import { useUserStore } from '@/stores/user';
+import { Clock, Globe, ArrowUpRight, Users, Trash2, Loader2 } from 'lucide-vue-next'; 
 
 const historyStore = useHistoryStore();
 const userStore = useUserStore();
 
-// Надійний спосіб завантаження: перевіряємо статус і наявність даних
 const loadDataIfNeeded = () => {
   if (userStore.isAuthenticated && historyStore.historyItems.length === 0) {
     historyStore.fetchHistory(7);
   }
 };
 
-// Викликаємо при появі віджета на екрані
-onMounted(loadDataIfNeeded);
-// А також якщо юзер щойно залогінився
+const setupIntersectionObserver = () => {
+  const sentinel = document.getElementById('history-load-more-sentinel');
+  const container = document.getElementById('horizontal-scroll-container');
+  if (!sentinel || !container) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && !historyStore.isLoading && historyStore.hasMore) {
+      historyStore.fetchHistory(7);
+    }
+  }, { 
+    root: container,
+    rootMargin: '0px 300px 0px 0px', 
+    threshold: 0.01 
+  });
+
+  observer.observe(sentinel);
+};
+
+onMounted(async () => {
+  loadDataIfNeeded();
+  await nextTick();
+  setupIntersectionObserver();
+});
+
 watch(() => userStore.isAuthenticated, loadDataIfNeeded);
 
-// Беремо 5 останніх візитів
-const recentHistory = computed(() => historyStore.historyItems.slice(0, 5));
+const recentHistory = computed(() => historyStore.historyItems);
 
 const getDomain = (url: string) => {
   try {
@@ -40,7 +59,6 @@ const formatVisitTime = (isoDate: string) => {
   return `${date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' })}, ${timeString}`;
 };
 
-// Функція для обробки видалення
 const handleDelete = (pageId: string) => {
   historyStore.removeItem(pageId);
 };
@@ -54,6 +72,9 @@ const handleDelete = (pageId: string) => {
         <div class="p-2 bg-purple-50 text-purple-600 rounded-lg"><Clock class="w-5 h-5" /></div>
         <h2 class="text-lg sm:text-xl font-bold text-slate-800">Останні візити</h2>
       </div>
+      <div class="text-sm font-semibold text-slate-400">
+        {{ recentHistory.length }} записів
+      </div>
     </div>
     
     <div class="p-4 sm:p-5 flex-grow overflow-hidden relative">
@@ -66,6 +87,7 @@ const handleDelete = (pageId: string) => {
 
       <div 
         v-else 
+        id="horizontal-scroll-container"
         class="flex overflow-x-auto snap-x snap-mandatory gap-4 sm:gap-5 pb-2 hide-scrollbar h-full items-stretch"
       >
         <a 
@@ -115,6 +137,13 @@ const handleDelete = (pageId: string) => {
             </div>
           </div>
         </a>
+
+        <!-- Sentinel for horizontal infinite scroll -->
+        <div id="history-load-more-sentinel" class="shrink-0 w-20 flex items-center justify-center snap-start h-full">
+            <Loader2 v-if="historyStore.isLoading && recentHistory.length > 0" class="h-6 w-6 animate-spin text-purple-600" />
+            <div v-if="!historyStore.hasMore && recentHistory.length > 0" class="w-1 h-full bg-transparent"></div>
+        </div>
+
       </div>
     </div>
   </div>
